@@ -1,0 +1,130 @@
+import React, { useState } from 'react'
+import { NavLink, useNavigate } from 'react-router-dom'
+import {
+  Home, ScanBarcode, Search, GitCompareArrows, ShoppingCart,
+  Heart, UserCircle2, Settings, LogOut, Leaf, ShieldCheck, Info,
+  BarChart2
+} from 'lucide-react'
+import { useApp } from '../store.jsx'
+
+const NAV = [
+  { to: '/home',               label: 'Home',             icon: Home },
+  { to: '/dashboard',          label: 'Dashboard',        icon: BarChart2 },
+  { to: '/scan',               label: 'Scan',             icon: ScanBarcode },
+  { to: '/search',             label: 'Search',           icon: Search },
+  { to: '/compare',            label: 'Compare',          icon: GitCompareArrows },
+  { to: '/shopping-list',      label: 'Shopping List',    icon: ShoppingCart },
+  { to: '/favorites',          label: 'Favorites',        icon: Heart },
+  { to: '/profile',            label: 'Nutrition Profile',icon: UserCircle2 },
+  { to: '/personal-dashboard', label: 'My Dashboard',     icon: BarChart2 }
+]
+
+const NAV_BOTTOM = [
+  { to: '/about',    label: 'About',    icon: Info        },
+  { to: '/admin',    label: 'Admin',    icon: ShieldCheck },
+  { to: '/settings', label: 'Settings', icon: Settings    }
+]
+
+export default function Sidebar() {
+  const { userName, logout, shoppingList, favorites } = useApp()
+  const navigate = useNavigate()
+
+  const pendingItems = shoppingList.filter((p) => !p.purchased).length
+
+  return (
+    <aside className="hidden lg:flex flex-col w-64 shrink-0 h-screen sticky top-0 border-r border-moss-100/70 dark:border-white/5 bg-white/60 dark:bg-[#0E1A14]/80 backdrop-blur-2xl px-3 py-5">
+      {/* Logo */}
+      <div className="flex items-center gap-2.5 px-3 mb-7">
+        <div className="h-9 w-9 rounded-xl bg-moss-700 flex items-center justify-center shadow-sm">
+          <Leaf size={17} className="text-leaf-light" />
+        </div>
+        <div className="leading-none">
+          <p className="font-display font-semibold text-[17px] text-moss-700 dark:text-white">Foodie AI</p>
+          <p className="text-[10px] uppercase tracking-widest text-ink/35 dark:text-white/35 mt-0.5">Nutrition Assistant</p>
+        </div>
+      </div>
+
+      {/* Main nav */}
+      <nav className="flex-1 flex flex-col gap-0.5 overflow-y-auto">
+        {NAV.map(({ to, label, icon: Icon }) => (
+          <NavLink
+            key={to}
+            to={to}
+            className={({ isActive }) =>
+              `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all focus-ring group relative ${
+                isActive
+                  ? 'bg-moss-700 text-white shadow-soft'
+                  : 'text-ink/55 dark:text-white/55 hover:bg-mint-tint dark:hover:bg-white/5 hover:text-moss-700 dark:hover:text-white'
+              }`
+            }
+          >
+            {({ isActive }) => (
+              <>
+                <Icon size={17} strokeWidth={isActive ? 2.5 : 2} />
+                <span className="flex-1">{label}</span>
+                {/* Badge for shopping list */}
+                {to === '/shopping-list' && pendingItems > 0 && (
+                  <span className={`h-5 min-w-5 rounded-full text-[11px] font-bold flex items-center justify-center px-1.5 ${
+                    isActive ? 'bg-white/20 text-white' : 'bg-leaf text-white'
+                  }`}>
+                    {pendingItems}
+                  </span>
+                )}
+                {/* Badge for favorites */}
+                {to === '/favorites' && favorites.length > 0 && (
+                  <span className={`h-5 min-w-5 rounded-full text-[11px] font-bold flex items-center justify-center px-1.5 ${
+                    isActive ? 'bg-white/20 text-white' : 'bg-clay/15 text-clay'
+                  }`}>
+                    {favorites.length}
+                  </span>
+                )}
+              </>
+            )}
+          </NavLink>
+        ))}
+
+        <div className="my-2 h-px bg-moss-100/70 dark:bg-white/8 mx-3" />
+
+        {NAV_BOTTOM.map(({ to, label, icon: Icon }) => (
+          <NavLink
+            key={to}
+            to={to}
+            className={({ isActive }) =>
+              `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all focus-ring ${
+                isActive
+                  ? 'bg-moss-700 text-white shadow-soft'
+                  : 'text-ink/55 dark:text-white/55 hover:bg-mint-tint dark:hover:bg-white/5 hover:text-moss-700 dark:hover:text-white'
+              }`
+            }
+          >
+            <Icon size={17} strokeWidth={2} />
+            {label}
+          </NavLink>
+        ))}
+      </nav>
+
+      {/* Logout */}
+      <button
+        onClick={() => { logout(); navigate('/') }}
+        className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-ink/45 dark:text-white/35 hover:bg-clay/8 hover:text-clay dark:hover:bg-clay/10 transition-all focus-ring mt-1"
+      >
+        <LogOut size={17} />
+        Log out
+      </button>
+
+      {/* User card */}
+      <div className="mt-3 glass-panel p-3 flex items-center gap-2.5">
+        <div className="h-9 w-9 rounded-full bg-gradient-to-br from-moss-700 to-leaf flex items-center justify-center font-display font-bold text-white text-sm shrink-0">
+          {userName[0]}
+        </div>
+        <div className="leading-tight flex-1 min-w-0">
+          <p className="text-sm font-semibold text-ink dark:text-white/90 truncate">{userName}</p>
+          <p className="text-[11px] text-ink/40 dark:text-white/35">Free plan · Active</p>
+        </div>
+        <button onClick={() => navigate('/settings')} className="text-ink/25 hover:text-ink/50 focus-ring">
+          <Settings size={14} />
+        </button>
+      </div>
+    </aside>
+  )
+}

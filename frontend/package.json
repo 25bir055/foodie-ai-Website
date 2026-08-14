@@ -1,0 +1,32 @@
+{
+  "name": "foodie-ai",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Foodie AI — Smart Food Product Scanner & Personalized Nutrition Assistant",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "firebase": "^12.17.1",
+    "framer-motion": "^11.2.10",
+    "html5-qrcode": "^2.3.8",
+    "lucide-react": "^0.383.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.24.0",
+    "recharts": "^2.12.7"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "autoprefixer": "^10.4.19",
+    "postcss": "^8.4.38",
+    "tailwindcss": "^3.4.4",
+    "vite": "^5.3.1"
+  }
+}
