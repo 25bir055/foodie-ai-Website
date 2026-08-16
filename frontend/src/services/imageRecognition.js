@@ -79,8 +79,8 @@ function extractJsonFromText(rawText) {
   if (!rawText) return null
   let text = rawText.trim()
 
-  // Remove markdown code fences
-  text = text.replace(/^```(?:json)?\s*/im, '').replace(/\s*```$/im, '').trim()
+  // Remove markdown code fences if wrapped in ```json ... ```
+  text = text.replace(/```json\s*/gi, '').replace(/```\s*$/gi, '').trim()
 
   // Find first { and last }
   const firstOpen = text.indexOf('{')
@@ -92,6 +92,87 @@ function extractJsonFromText(rawText) {
   }
 
   return JSON.parse(text)
+}
+
+/**
+ * Automatically find available Gemini models for this API key
+ */
+async function getAvailableGeminiModels(apiKey) {
+  try {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`)
+    if (res.ok) {
+      const data = await res.json()
+      if (Array.isArray(data.models)) {
+        const supported = data.models
+          .filter(m => m.supportedGenerationMethods?.includes('generateContent'))
+          .map(m => m.name.replace('models/', ''))
+        
+        console.log('Available Gemini Models for this key:', supported)
+        if (supported.length > 0) return supported
+      }
+    }
+  } catch (err) {
+    console.warn('Could not list models via REST API:', err.message)
+  }
+
+  // Fallback prioritized model list
+  return [
+    'gemini-1.5-flash-latest',
+    'gemini-1.5-flash',
+    'gemini-2.0-flash',
+    'gemini-2.0-flash-exp',
+    'gemini-1.5-flash-8b',
+    'gemini-1.5-pro-latest',
+    'gemini-1.5-pro',
+    'gemini-pro-vision'
+  ]
+}
+
+/**
+ * Call Gemini Vision via direct REST API
+ */
+async function callGeminiRestVision(apiKey, modelName, prompt, base64Data, mimeType) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`
+  
+  const payload = {
+    contents: [
+      {
+        parts: [
+          { text: prompt },
+          {
+            inline_data: {
+              mime_type: mimeType || 'image/jpeg',
+              data: base64Data
+            }
+          }
+        ]
+      }
+    ],
+    generationConfig: {
+      temperature: 0.1,
+      response_mime_type: 'application/json'
+    }
+  }
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  })
+
+  const data = await res.json()
+
+  if (!res.ok) {
+    throw new Error(data.error?.message || `HTTP ${res.status}: ${res.statusText}`)
+  }
+
+  const candidate = data.candidates?.[0]
+  const text = candidate?.content?.parts?.[0]?.text
+  if (!text) {
+    throw new Error('Gemini returned empty response for this image.')
+  }
+
+  return text
 }
 
 /**
@@ -117,64 +198,81 @@ export async function analyzeNutritionImage(imageFile) {
   const apiKey = getGeminiApiKey()
   if (!apiKey) {
     throw new Error(
-      'Invalid or missing Google Gemini API Key. Google Gemini keys start with "AIzaSy...". Please get a free API key from https://aistudio.google.com/apikey and add it to .env (VITE_GEMINI_API_KEY) or enter it in Settings.'
+      'Google Gemini API Key is missing. Please click "Enter API Key" and paste your free key from https://aistudio.google.com/apikey.'
     )
   }
-
-  const genAI = new GoogleGenerativeAI(apiKey)
-  const modelsToTry = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro']
-  let lastError = null
 
   const prompt = `You are an expert food scientist and OCR nutritionist for Foodie AI.
 Carefully examine this image of a food product package, nutrition facts table, or ingredient label.
 Extract the EXACT values printed on the package. If a field is not visible, estimate a realistic value based on the food type.
-You MUST output ONLY a valid, single JSON object with no preamble, no commentary, and no markdown formatting outside JSON.
+Output ONLY a valid, single JSON object:
 
-JSON Schema:
 {
   "name": "Exact Product Name (e.g. Britannia NutriChoice Oats, Saffola Masala Oats, Amul Butter)",
   "brand": "Brand Name (e.g. Britannia, Nestle, Amul, Kellogg's)",
-  "category": "Food Category (e.g. Breakfast & Cereal, Dairy, Snacks & Biscuits, Beverages, Bakery, Confectionery)",
-  "barcode": "Barcode digits if visible in image, else leave empty string",
-  "servingSize": "Serving size text e.g. 100g or 30g",
-  "calories": 0 (number: energy in kcal per 100g or serving),
-  "protein": 0 (number: protein in grams),
-  "carbohydrates": 0 (number: carbohydrates in grams),
-  "sugar": 0 (number: total sugar in grams),
-  "fat": 0 (number: total fat in grams),
-  "saturatedFat": 0 (number: saturated fat in grams),
-  "fiber": 0 (number: dietary fiber in grams),
-  "sodium": 0 (number: sodium in milligrams mg),
-  "ingredients": ["ingredient 1", "ingredient 2", "ingredient 3"],
-  "allergens": ["Specific allergens found, e.g. Milk, Wheat (Gluten), Peanuts, Soy, Tree Nuts, Eggs"],
-  "concerningIngredients": ["Additives, artificial colors, palm oil, MSG, high fructose corn syrup if found"],
-  "nutriScore": "a" (one lowercase letter: "a", "b", "c", "d", or "e"),
-  "healthScore": 75 (number between 0 and 100 based on nutritional quality),
+  "category": "Food Category (e.g. Breakfast & Cereal, Dairy, Snacks & Biscuits, Beverages, Bakery)",
+  "barcode": "Barcode digits if visible in image, else empty string",
+  "servingSize": "Serving size e.g. 100g or 30g",
+  "calories": 0,
+  "protein": 0,
+  "carbohydrates": 0,
+  "sugar": 0,
+  "fat": 0,
+  "saturatedFat": 0,
+  "fiber": 0,
+  "sodium": 0,
+  "ingredients": ["ingredient 1", "ingredient 2"],
+  "allergens": ["Specific allergens found e.g. Milk, Wheat, Peanuts, Soy"],
+  "concerningIngredients": ["Additives, palm oil, MSG if found"],
+  "nutriScore": "a",
+  "healthScore": 75,
   "insight": "1-2 sentence nutritionist summary of this specific product's health value."
 }`
 
-  for (const modelName of modelsToTry) {
+  // 1. Fetch available models for this user's API Key
+  const availableModels = await getAvailableGeminiModels(apiKey)
+  
+  // Prioritize Flash models for fast, high-quality multimodal extraction
+  const flashFirst = availableModels.sort((a, b) => {
+    if (a.includes('flash') && !b.includes('flash')) return -1
+    if (!a.includes('flash') && b.includes('flash')) return 1
+    return 0
+  })
+
+  let lastError = null
+
+  // 2. Try each available model with REST or SDK
+  for (const modelName of flashFirst.slice(0, 4)) {
     try {
-      console.log(`🧠 Calling Gemini Vision AI model: ${modelName}...`)
-      const model = genAI.getGenerativeModel({ model: modelName })
+      console.log(`🧠 Calling Gemini Vision with model: ${modelName}...`)
       
-      const result = await model.generateContent([
-        prompt,
-        {
-          inlineData: {
-            data: base64Data,
-            mimeType: mimeType
+      let rawText = ''
+      try {
+        // Attempt Direct REST endpoint first
+        rawText = await callGeminiRestVision(apiKey, modelName, prompt, base64Data, mimeType)
+      } catch (restErr) {
+        console.warn(`REST call failed for ${modelName}, trying SDK:`, restErr.message)
+        // Fallback to SDK
+        const genAI = new GoogleGenerativeAI(apiKey)
+        const model = genAI.getGenerativeModel({ model: modelName })
+        const result = await model.generateContent([
+          prompt,
+          {
+            inlineData: {
+              data: base64Data,
+              mimeType: mimeType
+            }
           }
-        }
-      ])
+        ])
+        const res = await result.response
+        rawText = res.text()
+      }
 
-      const response = await result.response
-      const text = response.text()
-      console.log('Gemini raw response text:', text)
+      console.log('Gemini raw response text:', rawText)
 
-      const parsed = extractJsonFromText(text)
-      if (!parsed || (!parsed.name && !parsed.calories)) {
-        throw new Error('Gemini response did not contain expected nutrition JSON schema.')
+      const parsed = extractJsonFromText(rawText)
+      if (!parsed || (!parsed.name && !parsed.calories && !parsed.protein)) {
+        throw new Error('Gemini response did not contain expected nutrition JSON.')
       }
 
       const healthScore = Number(parsed.healthScore) || calculateHealthScore(parsed)
@@ -213,11 +311,10 @@ JSON Schema:
         source: 'Gemini Vision AI'
       }
     } catch (err) {
-      console.warn(`Gemini Vision model ${modelName} attempt failed:`, err.message)
+      console.warn(`Gemini Vision model ${modelName} failed:`, err.message)
       lastError = err
     }
   }
 
-  // If all models failed, throw the genuine Gemini error so user knows what went wrong
-  throw new Error(`Gemini Vision AI could not analyze the image: ${lastError?.message || 'Please ensure the photo is sharp and clear.'}`)
+  throw new Error(`Gemini Vision AI analysis error: ${lastError?.message || 'Could not process nutrition image.'}`)
 }
