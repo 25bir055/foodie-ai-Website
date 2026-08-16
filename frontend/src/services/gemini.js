@@ -3,12 +3,12 @@ import { GoogleGenerativeAI } from '@google/generative-ai'
 const apiKey = import.meta.env.VITE_GEMINI_API_KEY
 let genAI = null
 
-if (apiKey && apiKey !== 'your-gemini-key') {
+if (apiKey && apiKey !== 'your-gemini-key' && apiKey.startsWith('AIzaSy')) {
   genAI = new GoogleGenerativeAI(apiKey)
 }
 
 /**
- * Generate AI response using Gemini AI or fallback engine
+ * Ask Gemini AI nutrition assistant for text insights
  */
 export async function askGeminiAI(userQuestion, product = null) {
   if (genAI) {

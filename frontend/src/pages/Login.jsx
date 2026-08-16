@@ -6,14 +6,14 @@ import { loginWithEmail, signupWithEmail, loginWithGoogle } from '../services/au
 
 const FEATURES = [
   { icon: ScanBarcode, label: 'Instant Barcode Scan', desc: 'Scan any packaged food in seconds' },
-  { icon: Sparkles,   label: 'AI Health Insights',   desc: 'Personalised nutrition explanations' },
-  { icon: ShieldCheck, label: 'Allergen Detection',  desc: 'Instant alerts for your triggers' }
+  { icon: Sparkles, label: 'AI Health Insights', desc: 'Personalised nutrition explanations' },
+  { icon: ShieldCheck, label: 'Allergen Detection', desc: 'Instant alerts for your triggers' }
 ]
 
 const STATS = [
   { value: '2.4M+', label: 'Products Indexed' },
-  { value: '98%',   label: 'Scan Accuracy'    },
-  { value: '180+',  label: 'Countries'        }
+  { value: '98%', label: 'Scan Accuracy' },
+  { value: '180+', label: 'Countries' }
 ]
 
 export default function Login() {
@@ -25,15 +25,19 @@ export default function Login() {
   const [loading, setLoading] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
   const [error, setError] = useState('')
-  
+
   const navigate = useNavigate()
-  const { isAuthed } = useApp()
+  const { isAuthed, profile, authLoading, setUser, setProfile } = useApp()
 
   useEffect(() => {
-    if (isAuthed) {
-      navigate('/dashboard')
+    if (isAuthed && !authLoading) {
+      if (profile && profile.profileCompleted === false) {
+        navigate('/setup-profile')
+      } else {
+        navigate('/dashboard')
+      }
     }
-  }, [isAuthed, navigate])
+  }, [isAuthed, profile, authLoading, navigate])
 
   const handleEmailSubmit = async (e) => {
     e.preventDefault()
@@ -41,25 +45,27 @@ export default function Login() {
     setLoading(true)
 
     try {
+      let loggedUser = null
       if (mode === 'signin') {
-        await loginWithEmail(email, password)
+        loggedUser = await loginWithEmail(email, password)
       } else {
-        await signupWithEmail(email, password, displayName)
+        loggedUser = await signupWithEmail(email, password, displayName)
       }
-      navigate('/dashboard')
+
+      if (loggedUser) {
+        setUser(loggedUser)
+        if (loggedUser.profile) {
+          setProfile(loggedUser.profile)
+        }
+        if (loggedUser.profile?.profileCompleted === false) {
+          navigate('/setup-profile')
+        } else {
+          navigate('/dashboard')
+        }
+      }
     } catch (err) {
       console.error('Auth error:', err)
-      if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
-        setError('Invalid email or password.')
-      } else if (err.code === 'auth/email-already-in-use') {
-        setError('An account with this email already exists.')
-      } else if (err.code === 'auth/weak-password') {
-        setError('Password should be at least 6 characters.')
-      } else if (err.code === 'auth/invalid-email') {
-        setError('Please enter a valid email address.')
-      } else {
-        setError(err.message || 'Authentication failed. Please check your Firebase configuration.')
-      }
+      setError(err.message || 'Authentication failed. Please check your credentials.')
     } finally {
       setLoading(false)
     }
@@ -69,8 +75,18 @@ export default function Login() {
     setError('')
     setGoogleLoading(true)
     try {
-      await loginWithGoogle()
-      navigate('/dashboard')
+      const googleUser = await loginWithGoogle()
+      if (googleUser) {
+        setUser(googleUser)
+        if (googleUser.profile) {
+          setProfile(googleUser.profile)
+        }
+        if (googleUser.profile?.profileCompleted === false) {
+          navigate('/setup-profile')
+        } else {
+          navigate('/dashboard')
+        }
+      }
     } catch (err) {
       console.error('Google Sign-in error:', err)
       if (err.code !== 'auth/popup-closed-by-user') {
@@ -172,7 +188,7 @@ export default function Login() {
           </div>
         </div>
 
-        <p className="relative text-xs text-white/30">© 2026 Foodie AI · Powered by Firebase & Gemini AI</p>
+        <p className="relative text-xs text-white/30">© 2026 Foodie AI · Powered by MongoDB & Gemini AI</p>
       </div>
 
       {/* ── Right Form Panel ─────────────────────────────────────── */}
@@ -315,10 +331,10 @@ export default function Login() {
                 <span className="h-4 w-4 border-2 border-moss-700/30 border-t-moss-700 rounded-full animate-spin" />
               ) : (
                 <svg width="18" height="18" viewBox="0 0 48 48">
-                  <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.9 32.6 29.4 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l6-6C34.5 5.1 29.5 3 24 3 12.4 3 3 12.4 3 24s9.4 21 21 21 21-9.4 21-21c0-1.4-.1-2.4-.4-3.5z"/>
-                  <path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.6 15.9 18.9 13 24 13c3.1 0 5.8 1.1 8 3l6-6C34.5 6.1 29.5 3 24 3 16.1 3 9.3 7.6 6.3 14.7z"/>
-                  <path fill="#4CAF50" d="M24 45c5.4 0 10.3-1.8 14-5l-6.5-5.4c-2 1.4-4.6 2.4-7.5 2.4-5.4 0-9.9-3.4-11.5-8.2l-6.6 5.1C9.2 40.3 16 45 24 45z"/>
-                  <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-1 3-3.1 5.4-5.8 6.9l6.5 5.4c-.5.4 7-5.1 7-16.3 0-1.4-.1-2.4-.4-3.5z"/>
+                  <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.9 32.6 29.4 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l6-6C34.5 5.1 29.5 3 24 3 12.4 3 3 12.4 3 24s9.4 21 21 21 21-9.4 21-21c0-1.4-.1-2.4-.4-3.5z" />
+                  <path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.6 15.9 18.9 13 24 13c3.1 0 5.8 1.1 8 3l6-6C34.5 6.1 29.5 3 24 3 16.1 3 9.3 7.6 6.3 14.7z" />
+                  <path fill="#4CAF50" d="M24 45c5.4 0 10.3-1.8 14-5l-6.5-5.4c-2 1.4-4.6 2.4-7.5 2.4-5.4 0-9.9-3.4-11.5-8.2l-6.6 5.1C9.2 40.3 16 45 24 45z" />
+                  <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-1 3-3.1 5.4-5.8 6.9l6.5 5.4c-.5.4 7-5.1 7-16.3 0-1.4-.1-2.4-.4-3.5z" />
                 </svg>
               )}
               Continue with Google

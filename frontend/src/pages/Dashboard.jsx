@@ -6,7 +6,7 @@ import {
 } from 'lucide-react'
 import AppShell from '../components/AppShell.jsx'
 import HealthScoreRing from '../components/HealthScoreRing.jsx'
-import { RECENT_SCANS as FALLBACK_SCANS, MACROS_TODAY, AI_INSIGHTS } from '../data/mockData'
+import { MACROS_TODAY, AI_INSIGHTS } from '../data/mockData'
 import { useApp } from '../store.jsx'
 
 const QUICK_ACTIONS = [
@@ -28,12 +28,12 @@ export default function Dashboard() {
   const { userName, scanHistory } = useApp()
 
   const scansToDisplay = useMemo(() => {
-    return scanHistory && scanHistory.length > 0 ? scanHistory : FALLBACK_SCANS
+    return scanHistory || []
   }, [scanHistory])
 
-  // Compute average health score from user's scan history
+  // Compute average health score from user's actual scan history
   const averageHealthScore = useMemo(() => {
-    if (!scansToDisplay || scansToDisplay.length === 0) return 74
+    if (!scansToDisplay || scansToDisplay.length === 0) return 0
     const total = scansToDisplay.reduce((sum, item) => sum + (item.healthScore || 50), 0)
     return Math.round(total / scansToDisplay.length)
   }, [scansToDisplay])
@@ -78,7 +78,7 @@ export default function Dashboard() {
 
       <div className="mb-5 flex flex-wrap items-center gap-2">
         <span className="rounded-full bg-leaf/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-moss-700 dark:text-leaf-light">Today</span>
-        <span className="rounded-full bg-moss-700/5 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-ink/60 dark:text-white/55">Firebase Live</span>
+        <span className="rounded-full bg-moss-700/5 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-ink/60 dark:text-white/55">MongoDB Live</span>
       </div>
 
       {/* ── Main Scan Card ──────────────────────────────── */}
@@ -232,34 +232,64 @@ export default function Dashboard() {
         <div className="section-header">
           <h2 className="font-display text-lg font-medium text-ink dark:text-white flex items-center gap-2">
             <Clock size={18} className="text-leaf" />
-            Recent Scans ({scansToDisplay.length})
+            Recent Scans {scansToDisplay.length > 0 && `(${scansToDisplay.length})`}
           </h2>
-          <button onClick={() => navigate('/search')} className="text-xs font-semibold text-leaf-dark hover:underline flex items-center gap-1">
-            See all <ArrowRight size={12} />
-          </button>
-        </div>
-        <div className="grid sm:grid-cols-2 gap-3">
-          {scansToDisplay.slice(0, 6).map((p, idx) => (
-            <button
-              key={p.id || p.barcode || idx}
-              onClick={() => navigate(`/product/${p.id || p.firestoreId}`)}
-              className="glass-panel p-4 flex items-center gap-4 card-hover text-left focus-ring"
-            >
-              <div className="h-14 w-14 rounded-xl2 bg-mint-tint dark:bg-white/5 flex items-center justify-center text-2xl shrink-0">
-                {p.image || '🥣'}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-sm text-ink dark:text-white/90 truncate">{p.name}</p>
-                <p className="text-xs text-ink/40 dark:text-white/40">{p.category}</p>
-                <p className="text-[11px] text-ink/30 dark:text-white/30 mt-0.5">{p.scannedAt || 'Recently'}</p>
-              </div>
-              <div className="flex flex-col items-end gap-2 shrink-0">
-                <HealthScoreRing score={p.healthScore || 50} size={44} strokeWidth={5} showLabel={false} />
-                <span className="text-[10px] font-semibold text-leaf-dark dark:text-leaf-light">View →</span>
-              </div>
+          {scansToDisplay.length > 0 && (
+            <button onClick={() => navigate('/search')} className="text-xs font-semibold text-leaf-dark hover:underline flex items-center gap-1">
+              See all <ArrowRight size={12} />
             </button>
-          ))}
+          )}
         </div>
+
+        {scansToDisplay.length > 0 ? (
+          <div className="grid sm:grid-cols-2 gap-3">
+            {scansToDisplay.slice(0, 6).map((p, idx) => (
+              <button
+                key={p.id || p.barcode || idx}
+                onClick={() => navigate(`/product/${p.id || p.barcode}`)}
+                className="glass-panel p-4 flex items-center gap-4 card-hover text-left focus-ring"
+              >
+                <div className="h-14 w-14 rounded-xl2 bg-mint-tint dark:bg-white/5 flex items-center justify-center text-2xl shrink-0 overflow-hidden">
+                  {p.imageUrl ? (
+                    <img
+                      src={p.imageUrl}
+                      alt={p.name || 'Product'}
+                      className="h-full w-full object-contain p-1"
+                      onError={(e) => { e.currentTarget.style.display = 'none' }}
+                    />
+                  ) : (
+                    <span>{p.image || '🥣'}</span>
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-sm text-ink dark:text-white/90 truncate">{p.name}</p>
+                  <p className="text-xs text-ink/40 dark:text-white/40">{p.brand ? `${p.brand} · ` : ''}{p.category}</p>
+                  <p className="text-[11px] text-ink/30 dark:text-white/30 mt-0.5">{p.scannedAt || 'Recently'}</p>
+                </div>
+                <div className="flex flex-col items-end gap-2 shrink-0">
+                  <HealthScoreRing score={p.healthScore || 50} size={44} strokeWidth={5} showLabel={false} />
+                  <span className="text-[10px] font-semibold text-leaf-dark dark:text-leaf-light">View →</span>
+                </div>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="glass-panel p-8 text-center sm:p-10">
+            <div className="h-12 w-12 rounded-2xl bg-mint-tint dark:bg-white/5 flex items-center justify-center mx-auto mb-3 text-2xl">
+              📦
+            </div>
+            <p className="font-display font-medium text-base text-ink dark:text-white">No scans yet</p>
+            <p className="text-xs text-ink/50 dark:text-white/40 mt-1 max-w-xs mx-auto">
+              Scan a product barcode or search to see your personal scan history and scores here.
+            </p>
+            <button
+              onClick={() => navigate('/scan')}
+              className="btn-primary mt-4 inline-flex items-center gap-2 text-xs py-2 px-4"
+            >
+              <ScanBarcode size={14} /> Scan First Product
+            </button>
+          </div>
+        )}
       </section>
 
       {/* ── Today's Tip ─────────────────────────────────── */}

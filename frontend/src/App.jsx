@@ -4,6 +4,7 @@ import { useApp } from './store.jsx'
 import { Loader2 } from 'lucide-react'
 
 import Login from './pages/Login.jsx'
+import SetupProfile from './pages/SetupProfile.jsx'
 import Dashboard from './pages/Dashboard.jsx'
 import HomeFlow from './pages/HomeFlow.jsx'
 import Scanner from './pages/Scanner.jsx'
@@ -15,7 +16,6 @@ import ShoppingList from './pages/ShoppingList.jsx'
 import Favorites from './pages/Favorites.jsx'
 import Profile from './pages/Profile.jsx'
 import PersonalDashboard from './pages/PersonalDashboard.jsx'
-import Admin from './pages/Admin.jsx'
 import About from './pages/About.jsx'
 import Settings from './pages/Settings.jsx'
 
@@ -38,6 +38,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/" element={<Login />} />
+      <Route path="/setup-profile" element={<Protected><SetupProfile /></Protected>} />
       <Route path="/home" element={<Protected><HomeFlow /></Protected>} />
       <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
       <Route path="/scan" element={<Protected><Scanner /></Protected>} />
@@ -49,7 +50,6 @@ export default function App() {
       <Route path="/favorites" element={<Protected><Favorites /></Protected>} />
       <Route path="/profile" element={<Protected><Profile /></Protected>} />
       <Route path="/personal-dashboard" element={<Protected><PersonalDashboard /></Protected>} />
-      <Route path="/admin" element={<Protected><Admin /></Protected>} />
       <Route path="/about" element={<Protected><About /></Protected>} />
       <Route path="/settings" element={<Protected><Settings /></Protected>} />
       <Route path="*" element={<Navigate to="/" replace />} />

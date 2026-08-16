@@ -1,52 +1,115 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react'
-import { SHOPPING_LIST_INITIAL, FAVORITES, PRODUCTS } from './data/mockData'
-import { auth } from './firebase'
-import { onAuthStateChanged } from 'firebase/auth'
-import { logoutUser } from './services/auth'
+import { PRODUCTS } from './data/mockData'
+import { logoutUser, getCurrentUser, getStoredUser, updateUserProfile } from './services/auth'
 import { getStoredScanHistory, saveScanHistory } from './hooks/useScanHistory'
+import { saveScanRecord, fetchAllProducts } from './services/api'
 
 const AppCtx = createContext(null)
 
 export function AppProvider({ children }) {
-  const [user, setUser] = useState(null)
+  const [user, setUser] = useState(() => getStoredUser())
   const [authLoading, setAuthLoading] = useState(true)
   const [theme, setTheme] = useState(() => localStorage.getItem('foodie_theme') || 'light')
-  
+  const [productsList, setProductsList] = useState(PRODUCTS)
+
+  const userKey = user?.uid || user?._id || user?.email || 'anonymous'
+
+  // Shopping List — empty by default, isolated per user
   const [shoppingList, setShoppingList] = useState(() => {
     try {
-      const stored = localStorage.getItem('foodie_shopping_list')
-      return stored ? JSON.parse(stored) : SHOPPING_LIST_INITIAL
+      const stored = localStorage.getItem(`foodie_shopping_${userKey}`)
+      return stored ? JSON.parse(stored) : []
     } catch {
-      return SHOPPING_LIST_INITIAL
+      return []
     }
   })
 
+  // Favorites — empty by default, isolated per user (NO default mock items!)
   const [favorites, setFavorites] = useState(() => {
     try {
-      const stored = localStorage.getItem('foodie_favorites')
-      return stored ? JSON.parse(stored) : FAVORITES.map((p) => p.id)
+      const stored = localStorage.getItem(`foodie_favorites_${userKey}`)
+      return stored ? JSON.parse(stored) : []
     } catch {
-      return FAVORITES.map((p) => p.id)
+      return []
     }
   })
 
-  const [scanHistory, setScanHistoryState] = useState(() => getStoredScanHistory())
+  const [scanHistory, setScanHistoryState] = useState(() => getStoredScanHistory(userKey))
 
   const [profile, setProfile] = useState({
     age: 27, height: 165, weight: 60,
     activityLevel: 'Moderately Active',
     dietaryPreference: 'Vegetarian',
     calorieGoal: 2100,
-    goals: ['Low Sugar', 'High Protein']
+    goals: ['Low Sugar', 'High Protein'],
+    profileCompleted: false
   })
 
-  // Firebase Auth state listener
+  // Load products list from MongoDB backend
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser)
-      setAuthLoading(false)
-    })
-    return () => unsubscribe()
+    async function loadProducts() {
+      try {
+        const fetched = await fetchAllProducts()
+        if (fetched && fetched.length > 0) {
+          setProductsList(fetched)
+        }
+      } catch (err) {
+        console.warn('Failed to load products in store:', err)
+      }
+    }
+    loadProducts()
+  }, [])
+
+  // Load user session and user-specific data from MongoDB backend
+  useEffect(() => {
+    async function initAuth() {
+      try {
+        const currentUser = await getCurrentUser()
+        if (currentUser) {
+          setUser(currentUser)
+          const key = currentUser.uid || currentUser._id || currentUser.email
+
+          if (currentUser.profile) {
+            setProfile((prev) => ({
+              ...prev,
+              ...currentUser.profile,
+              profileCompleted: currentUser.profile.profileCompleted ?? true
+            }))
+          }
+
+          // User-specific scan history
+          setScanHistoryState(getStoredScanHistory(key))
+
+          // User-specific favorites from MongoDB or localStorage
+          if (Array.isArray(currentUser.favorites)) {
+            setFavorites(currentUser.favorites)
+            localStorage.setItem(`foodie_favorites_${key}`, JSON.stringify(currentUser.favorites))
+          } else {
+            const cachedFavs = localStorage.getItem(`foodie_favorites_${key}`)
+            setFavorites(cachedFavs ? JSON.parse(cachedFavs) : [])
+          }
+
+          // User-specific shopping list from MongoDB or localStorage
+          if (Array.isArray(currentUser.shoppingList)) {
+            setShoppingList(currentUser.shoppingList)
+            localStorage.setItem(`foodie_shopping_${key}`, JSON.stringify(currentUser.shoppingList))
+          } else {
+            const cachedShop = localStorage.getItem(`foodie_shopping_${key}`)
+            setShoppingList(cachedShop ? JSON.parse(cachedShop) : [])
+          }
+        } else {
+          setUser(null)
+          setFavorites([])
+          setShoppingList([])
+          setScanHistoryState([])
+        }
+      } catch (err) {
+        console.warn('Auth init failed:', err)
+      } finally {
+        setAuthLoading(false)
+      }
+    }
+    initAuth()
   }, [])
 
   // Persist Theme
@@ -55,69 +118,161 @@ export function AppProvider({ children }) {
     localStorage.setItem('foodie_theme', theme)
   }, [theme])
 
-  // Persist Shopping list
-  useEffect(() => {
-    localStorage.setItem('foodie_shopping_list', JSON.stringify(shoppingList))
-  }, [shoppingList])
-
-  // Persist Favorites
-  useEffect(() => {
-    localStorage.setItem('foodie_favorites', JSON.stringify(favorites))
-  }, [favorites])
-
   const addScanToHistory = (product) => {
     if (!product) return
+    const key = user?.uid || user?._id || user?.email || 'anonymous'
     const newEntry = {
       ...product,
       scannedAt: 'Just now',
       timestamp: Date.now()
     }
     setScanHistoryState((prev) => {
-      const filtered = prev.filter((item) => item.id !== product.id && item.barcode !== product.barcode)
+      const filtered = prev.filter((item) => String(item.id) !== String(product.id) && String(item.barcode) !== String(product.barcode))
       const updated = [newEntry, ...filtered].slice(0, 50)
-      saveScanHistory(updated)
+      saveScanHistory(updated, key)
       return updated
+    })
+
+    // Record scan to backend MongoDB
+    saveScanRecord({
+      userId: user?.uid || user?._id || 'anonymous',
+      barcode: product.barcode,
+      productName: product.name,
+      healthScore: product.healthScore
     })
   }
 
   const clearScanHistory = () => {
+    const key = user?.uid || user?._id || user?.email || 'anonymous'
     setScanHistoryState([])
-    localStorage.removeItem('foodie_ai_scan_history')
+    localStorage.removeItem(`foodie_scan_history_${key}`)
   }
 
-  const toggleFavorite = (id) =>
-    setFavorites((prev) =>
-      prev.includes(id) ? prev.filter((f) => f !== id) : [...prev, id]
-    )
+  // Toggle favorite for current user & sync to MongoDB
+  const toggleFavorite = (id) => {
+    if (!id) return
+    const cleanId = String(id)
 
-  const addToShoppingList = (product) => {
-    setShoppingList((prev) => {
-      const existing = prev.find((p) => p.id === product.id)
-      if (existing) {
-        const newQty = existing.qty + (product.qty ?? 1)
-        if (newQty <= 0) return prev.filter((p) => p.id !== product.id)
-        return prev.map((p) => (p.id === product.id ? { ...p, qty: newQty } : p))
+    setFavorites((prev) => {
+      const next = prev.includes(cleanId)
+        ? prev.filter((f) => f !== cleanId)
+        : [...prev, cleanId]
+
+      const key = user?.uid || user?._id || user?.email || 'anonymous'
+      localStorage.setItem(`foodie_favorites_${key}`, JSON.stringify(next))
+
+      // Sync with MongoDB backend if logged in
+      if (user) {
+        updateUserProfile({ favorites: next }).catch((err) =>
+          console.warn('Failed to sync favorites to MongoDB:', err)
+        )
       }
-      return [...prev, { ...product, qty: product.qty ?? 1, purchased: false }]
+
+      return next
     })
   }
 
-  const removeFromShoppingList = (id) =>
-    setShoppingList((prev) => prev.filter((p) => p.id !== id))
+  // Add to Shopping List & sync to MongoDB
+  const addToShoppingList = (product) => {
+    if (!product) return
+    setShoppingList((prev) => {
+      const existing = prev.find((p) => String(p.id) === String(product.id))
+      let next
+      if (existing) {
+        const newQty = existing.qty + (product.qty ?? 1)
+        if (newQty <= 0) {
+          next = prev.filter((p) => String(p.id) !== String(product.id))
+        } else {
+          next = prev.map((p) => (String(p.id) === String(product.id) ? { ...p, qty: newQty } : p))
+        }
+      } else {
+        next = [...prev, { ...product, qty: product.qty ?? 1, purchased: false }]
+      }
 
-  const togglePurchased = (id) =>
-    setShoppingList((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, purchased: !p.purchased } : p))
-    )
+      const key = user?.uid || user?._id || user?.email || 'anonymous'
+      localStorage.setItem(`foodie_shopping_${key}`, JSON.stringify(next))
+
+      if (user) {
+        updateUserProfile({ shoppingList: next }).catch((err) =>
+          console.warn('Failed to sync shopping list to MongoDB:', err)
+        )
+      }
+
+      return next
+    })
+  }
+
+  const removeFromShoppingList = (id) => {
+    setShoppingList((prev) => {
+      const next = prev.filter((p) => String(p.id) !== String(id))
+      const key = user?.uid || user?._id || user?.email || 'anonymous'
+      localStorage.setItem(`foodie_shopping_${key}`, JSON.stringify(next))
+
+      if (user) {
+        updateUserProfile({ shoppingList: next }).catch((err) =>
+          console.warn('Failed to sync shopping list to MongoDB:', err)
+        )
+      }
+
+      return next
+    })
+  }
+
+  const togglePurchased = (id) => {
+    setShoppingList((prev) => {
+      const next = prev.map((p) =>
+        String(p.id) === String(id) ? { ...p, purchased: !p.purchased } : p
+      )
+      const key = user?.uid || user?._id || user?.email || 'anonymous'
+      localStorage.setItem(`foodie_shopping_${key}`, JSON.stringify(next))
+
+      if (user) {
+        updateUserProfile({ shoppingList: next }).catch((err) =>
+          console.warn('Failed to sync shopping list to MongoDB:', err)
+        )
+      }
+
+      return next
+    })
+  }
+
+  const handleLogout = async () => {
+    await logoutUser()
+    setUser(null)
+    setFavorites([])
+    setShoppingList([])
+  }
+
+  const handleSetProfile = async (newProfile) => {
+    setProfile(newProfile)
+    if (user) {
+      try {
+        await updateUserProfile({ profile: newProfile })
+      } catch (err) {
+        console.warn('Failed to sync profile to server:', err)
+      }
+    }
+  }
 
   const userName = user?.displayName || user?.email?.split('@')[0] || 'Foodie User'
+
+  // Match favorite products across all available products
+  const favoriteProducts = useMemo(() => {
+    if (!favorites || favorites.length === 0) return []
+    return productsList.filter((p) =>
+      favorites.includes(String(p.id)) ||
+      favorites.includes(String(p.barcode)) ||
+      (p._id && favorites.includes(String(p._id)))
+    )
+  }, [productsList, favorites])
 
   const value = useMemo(
     () => ({
       user,
+      setUser,
       isAuthed: !!user,
       authLoading,
-      logout: logoutUser,
+      logout: handleLogout,
       userName,
       theme,
       toggleTheme: () => setTheme((t) => (t === 'light' ? 'dark' : 'light')),
@@ -127,14 +282,14 @@ export function AppProvider({ children }) {
       togglePurchased,
       favorites,
       toggleFavorite,
-      favoriteProducts: PRODUCTS.filter((p) => favorites.includes(p.id)),
+      favoriteProducts,
       scanHistory,
       addScanToHistory,
       clearScanHistory,
       profile,
-      setProfile
+      setProfile: handleSetProfile
     }),
-    [user, authLoading, userName, theme, shoppingList, favorites, scanHistory, profile]
+    [user, authLoading, userName, theme, shoppingList, favorites, favoriteProducts, scanHistory, profile]
   )
 
   return <AppCtx.Provider value={value}>{children}</AppCtx.Provider>

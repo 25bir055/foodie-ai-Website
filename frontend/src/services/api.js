@@ -1,13 +1,4 @@
 import { PRODUCTS } from '../data/mockData'
-import {
-  getAllProducts,
-  getProductById,
-  getProductByBarcode,
-  searchProducts,
-  addProduct ,
-  updateProduct as firestoreUpdateProduct,
-  deleteProduct as firestoreDeleteProduct
-} from './firestore'
 
 const API_BASE_URL =
   import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
@@ -53,7 +44,7 @@ function normalizeProduct(product) {
 
   return {
     ...product,
-    id: product.id || product.firestoreId || (product.barcode ? `p_${product.barcode}` : `p_${Date.now()}`),
+    id: product.id || (product._id ? String(product._id) : (product.barcode ? `p_${product.barcode}` : `p_${Date.now()}`)),
 
     // Basic information
     name: product.name || product.product_name || 'Unnamed Product',
@@ -65,12 +56,12 @@ function normalizeProduct(product) {
     // Health
     healthScore: healthScore ?? 65,
     nutriscoreScore: product.nutriscore_score ?? null,
-    nutriscoreGrade: product.nutriscore_grade || '',
+    nutriscoreGrade: product.nutriscore_grade || product.nutriScore || '',
 
     // Nutrition
     calories: product.calories ?? product.energy_kcal ?? 180,
     protein: product.protein ?? product.protein_g ?? 4,
-    carbs: product.carbs ?? product.carbohydrates_g ?? 24,
+    carbs: product.carbs ?? product.carbohydrates ?? product.carbohydrates_g ?? 24,
     sugar: product.sugar ?? product.sugars_g ?? 6,
     fat: product.fat ?? product.fat_g ?? 5,
 
@@ -107,22 +98,26 @@ function normalizeProduct(product) {
       : [],
 
     // Other CSV fields
-    novaGroup: product.nova_group ?? null,
-    salt: product.salt_g ?? null,
+    novaGroup: product.nova_group ?? product.novaGroup ?? null,
+    salt: product.salt ?? product.salt_g ?? null,
     image: product.image || '🥣',
+    imageUrl: product.imageUrl || product.image_url || '',
     insight: product.insight || 'Balanced nutrition profile.'
   }
 }
 
-// Get all products
+// Get all products from MongoDB backend
 export async function fetchAllProducts() {
   try {
-    const products = await getAllProducts()
-    if (products && products.length > 0) {
-      return products.map(normalizeProduct)
+    const res = await fetch(`${API_BASE_URL}/products?limit=200`)
+    if (res.ok) {
+      const products = await res.json()
+      if (Array.isArray(products) && products.length > 0) {
+        return products.map(normalizeProduct)
+      }
     }
   } catch (err) {
-    console.warn('Firestore fetch failed, using fallback mock data:', err)
+    console.warn('Backend products fetch failed, using fallback mock data:', err)
   }
   return (PRODUCTS || []).map(normalizeProduct)
 }
@@ -130,15 +125,29 @@ export async function fetchAllProducts() {
 // Get product by ID
 export async function fetchProductById(id) {
   if (!id) return null
+
+  // Check if it's an AI-generated/scanned product in session storage
   try {
-    const product = await getProductById(id)
-    if (product) return normalizeProduct(product)
-  } catch (err) {
-    console.warn('Firestore fetch by ID failed, using fallback:', err)
+    const cachedAi = sessionStorage.getItem(`foodie_product_${id}`)
+    if (cachedAi) {
+      return normalizeProduct(JSON.parse(cachedAi))
+    }
+  } catch (e) {
+    // ignore
   }
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/products/${encodeURIComponent(id)}`)
+    if (res.ok) {
+      const product = await res.json()
+      if (product) return normalizeProduct(product)
+    }
+  } catch (err) {
+    console.warn('Backend fetch by ID failed, using fallback:', err)
+  }
+
   const fallback = PRODUCTS.find((p) =>
     String(p.id) === String(id) ||
-    String(p.firestoreId) === String(id) ||
     String(p.barcode) === String(id)
   )
   return fallback ? normalizeProduct(fallback) : null
@@ -148,12 +157,17 @@ export async function fetchProductById(id) {
 export async function fetchProductByBarcode(barcode) {
   if (!barcode) return null
   const cleanBarcode = String(barcode).trim()
+
   try {
-    const product = await getProductByBarcode(cleanBarcode)
-    if (product) return normalizeProduct(product)
+    const res = await fetch(`${API_BASE_URL}/products/barcode/${encodeURIComponent(cleanBarcode)}`)
+    if (res.ok) {
+      const product = await res.json()
+      if (product) return normalizeProduct(product)
+    }
   } catch (err) {
-    console.warn('Firestore fetch by barcode failed, using fallback:', err)
+    console.warn('Backend fetch by barcode failed, using fallback:', err)
   }
+
   const fallback = PRODUCTS.find((p) =>
     String(p.barcode || '').trim() === cleanBarcode ||
     String(p.id) === cleanBarcode
@@ -163,91 +177,92 @@ export async function fetchProductByBarcode(barcode) {
 
 // Search products
 export async function fetchSearchProducts(q) {
-  const queryTerm = String(q || '').trim().toLowerCase()
+  const queryTerm = String(q || '').trim()
+
   try {
-    const products = await searchProducts(queryTerm)
-    if (products && products.length > 0) {
-      return products.map(normalizeProduct)
+    const res = await fetch(`${API_BASE_URL}/products?search=${encodeURIComponent(queryTerm)}`)
+    if (res.ok) {
+      const products = await res.json()
+      if (Array.isArray(products) && products.length > 0) {
+        return products.map(normalizeProduct)
+      }
     }
   } catch (err) {
-    console.warn('Firestore search failed, using fallback:', err)
+    console.warn('Backend search failed, using fallback:', err)
   }
 
   if (!queryTerm) return (PRODUCTS || []).map(normalizeProduct)
 
+  const lower = queryTerm.toLowerCase()
   const filtered = PRODUCTS.filter((p) =>
-    p.name?.toLowerCase().includes(queryTerm) ||
-    p.brand?.toLowerCase().includes(queryTerm) ||
-    p.category?.toLowerCase().includes(queryTerm) ||
-    p.barcode?.includes(queryTerm)
+    p.name?.toLowerCase().includes(lower) ||
+    p.brand?.toLowerCase().includes(lower) ||
+    p.category?.toLowerCase().includes(lower) ||
+    p.barcode?.includes(lower)
   )
   return filtered.map(normalizeProduct)
 }
 
-// ADD product
+// Add product
 export async function createProduct(productData) {
   try {
-    const response = await fetch(`${API_BASE_URL}/products`, {
+    const res = await fetch(`${API_BASE_URL}/products`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(productData)
     })
-
-    if (response.ok) {
-      return normalizeProduct(await response.json())
+    if (res.ok) {
+      return normalizeProduct(await res.json())
     }
   } catch (err) {
-    console.warn('Backend server unavailable, adding directly to Firestore:', err)
+    console.warn('Create product error:', err)
   }
-
-  const firestoreRes = await firestoreAddProduct(productData)
-  return normalizeProduct(firestoreRes)
+  return normalizeProduct({ id: `p_${Date.now()}`, ...productData })
 }
 
-// UPDATE product
+// Update product
 export async function updateProduct(id, productData) {
   try {
-    const response = await fetch(
-      `${API_BASE_URL}/products/${encodeURIComponent(id)}`,
-      {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(productData)
-      }
-    )
-
-    if (response.ok) {
-      return normalizeProduct(await response.json())
+    const res = await fetch(`${API_BASE_URL}/products/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(productData)
+    })
+    if (res.ok) {
+      return normalizeProduct(await res.json())
     }
   } catch (err) {
-    console.warn('Backend server unavailable, updating directly in Firestore:', err)
+    console.warn('Update product error:', err)
   }
-
-  await firestoreUpdateProduct(id, productData)
   return normalizeProduct({ id, ...productData })
 }
 
-// DELETE product
+// Delete product
 export async function deleteProduct(id) {
   try {
-    const response = await fetch(
-      `${API_BASE_URL}/products/${encodeURIComponent(id)}`,
-      {
-        method: 'DELETE'
-      }
-    )
-
-    if (response.ok) {
-      return response.json()
+    const res = await fetch(`${API_BASE_URL}/products/${encodeURIComponent(id)}`, {
+      method: 'DELETE'
+    })
+    if (res.ok) {
+      return await res.json()
     }
   } catch (err) {
-    console.warn('Backend server unavailable, deleting directly from Firestore:', err)
+    console.warn('Delete product error:', err)
   }
+  return { message: `Product ${id} deleted` }
+}
 
-  await firestoreDeleteProduct(id)
-  return { message: `Product ${id} deleted successfully` }
+// Scan tracking
+export async function saveScanRecord({ userId, barcode, productName, healthScore }) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/scans`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, barcode, productName, healthScore })
+    })
+    return res.ok
+  } catch (err) {
+    console.warn('Could not save scan record:', err)
+    return false
+  }
 }

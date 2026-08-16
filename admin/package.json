@@ -1,21 +1,15 @@
 {
-  "name": "foodie-ai",
+  "name": "foodie-ai-admin",
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "Foodie AI — Smart Food Product Scanner & Personalized Nutrition Assistant",
+  "description": "Foodie AI — Admin Dashboard (Separate Application)",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --port 5174",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview --port 5174"
   },
   "dependencies": {
-    "@google/generative-ai": "^0.24.1",
-    "@tensorflow-models/mobilenet": "^2.1.1",
-    "@tensorflow/tfjs": "^4.22.0",
-    "firebase": "^12.17.1",
-    "framer-motion": "^11.2.10",
-    "html5-qrcode": "^2.3.8",
     "lucide-react": "^0.383.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

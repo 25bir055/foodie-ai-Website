@@ -1,0 +1,88 @@
+/* Foodie AI Admin App — Global Styles */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --green-dark:  #173C2C;
+  --green-mid:   #2C7C51;
+  --green-light: #4CAE7A;
+  --cream:       #F7FAF7;
+  --ink:         #1A2520;
+  --clay:        #D9534F;
+  --amber:       #E3A23D;
+  --glass-bg:    rgba(255,255,255,0.7);
+  --glass-border:rgba(23,60,44,0.08);
+  --shadow:      0 1px 3px rgba(23,60,44,0.08), 0 4px 16px rgba(23,60,44,0.06);
+}
+
+body {
+  font-family: 'Inter', sans-serif;
+  background: var(--cream);
+  color: var(--ink);
+  min-height: 100vh;
+}
+
+h1,h2,h3,h4 { font-family: 'Plus Jakarta Sans', sans-serif; }
+
+/* ── Utility classes ─────────────────────────────────────────── */
+.card {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(12px);
+}
+
+.btn-primary {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--green-dark); color: #fff;
+  font-weight: 600; font-size: 14px;
+  padding: 10px 20px; border-radius: 12px; border: none;
+  cursor: pointer; transition: background 0.2s;
+}
+.btn-primary:hover  { background: var(--green-mid); }
+.btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.btn-secondary {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: transparent; color: var(--ink);
+  font-weight: 600; font-size: 14px;
+  padding: 10px 20px; border-radius: 12px;
+  border: 1px solid var(--glass-border); cursor: pointer;
+  transition: background 0.2s;
+}
+.btn-secondary:hover { background: rgba(23,60,44,0.05); }
+
+.input-field {
+  width: 100%; padding: 12px 14px; border-radius: 12px;
+  border: 1px solid var(--glass-border);
+  background: rgba(255,255,255,0.9);
+  font-size: 14px; color: var(--ink);
+  outline: none; transition: box-shadow 0.2s;
+}
+.input-field:focus { box-shadow: 0 0 0 3px rgba(44,124,81,0.2); }
+
+.badge-green  { background: rgba(76,174,122,0.12); color: var(--green-mid); }
+.badge-red    { background: rgba(217,83,79,0.12);  color: var(--clay); }
+.badge-amber  { background: rgba(227,162,61,0.12); color: var(--amber); }
+
+/* ── Animations ─────────────────────────────────────────────── */
+@keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+.fade-up { animation: fadeUp 0.35s ease both; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin { animation: spin 0.8s linear infinite; }
+
+/* ── Scrollbar ──────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(23,60,44,0.15); border-radius: 99px; }
+
+/* ── Table ──────────────────────────────────────────────────── */
+table { border-collapse: collapse; width: 100%; }
+th, td { text-align: left; padding: 12px 16px; }
+thead tr { border-bottom: 1px solid var(--glass-border); }
+tbody tr { border-bottom: 1px solid rgba(23,60,44,0.04); transition: background 0.15s; }
+tbody tr:hover { background: rgba(23,60,44,0.02); }
+tbody tr:last-child { border-bottom: none; }

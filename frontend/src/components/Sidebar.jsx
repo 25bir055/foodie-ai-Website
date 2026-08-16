@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   Home, ScanBarcode, Search, GitCompareArrows, ShoppingCart,
-  Heart, UserCircle2, Settings, LogOut, Leaf, ShieldCheck, Info,
+  Heart, UserCircle2, Settings, LogOut, Leaf, Info,
   BarChart2
 } from 'lucide-react'
 import { useApp } from '../store.jsx'
@@ -20,9 +20,8 @@ const NAV = [
 ]
 
 const NAV_BOTTOM = [
-  { to: '/about',    label: 'About',    icon: Info        },
-  { to: '/admin',    label: 'Admin',    icon: ShieldCheck },
-  { to: '/settings', label: 'Settings', icon: Settings    }
+  { to: '/about',    label: 'About',    icon: Info     },
+  { to: '/settings', label: 'Settings', icon: Settings }
 ]
 
 export default function Sidebar() {

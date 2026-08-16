@@ -18,8 +18,19 @@ export default function ProductCard({ product, compact = false }) {
       >
         {/* Header row */}
         <div className="flex items-start justify-between gap-2">
-          <div className="h-16 w-16 rounded-xl2 bg-gradient-to-br from-mint-tint to-moss-50 dark:from-white/5 dark:to-white/3 flex items-center justify-center text-3xl shrink-0 shadow-inner group-hover:scale-105 transition-transform duration-300">
-            {product.image}
+          <div className="h-16 w-16 rounded-xl2 bg-gradient-to-br from-mint-tint to-moss-50 dark:from-white/5 dark:to-white/3 flex items-center justify-center shrink-0 shadow-inner group-hover:scale-105 transition-transform duration-300 overflow-hidden">
+            {product.imageUrl ? (
+              <img
+                src={product.imageUrl}
+                alt={product.name || 'Product'}
+                className="h-full w-full object-contain p-1"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none'
+                }}
+              />
+            ) : (
+              <span className="text-3xl">{product.image || '🥣'}</span>
+            )}
           </div>
           <div className="flex flex-col items-end gap-1.5">
             <span

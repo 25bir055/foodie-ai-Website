@@ -49,10 +49,8 @@ The mock layer is intentionally isolated so each piece can be swapped independen
 - **Camera scanning**: `src/pages/Scanner.jsx` currently simulates a scan on a button press. Swap in a
   browser-compatible scanner such as `@zxing/browser` or `html5-qrcode` and call the existing `runScan(barcode)`
   function with the decoded value.
-- **Authentication**: `src/pages/Login.jsx` calls `login()` from `src/store.jsx` directly. Replace that with
-  Firebase Authentication (email/password + Google provider) and keep the same `isAuthed` contract.
-- **Database**: `src/data/mockData.js` mirrors a Firestore `products` / `users` / `scans` collection shape —
-  swap the static arrays for Firestore reads once connected.
+- **Authentication**: `src/pages/Login.jsx` connects to backend JWT authentication (`/api/auth/login` and `/api/auth/signup`).
+- **Database**: Backend Express connects to MongoDB (`products`, `users`, `scans` collections) via Mongoose.
 - **AI**: `generateReply()` in `src/pages/AIAssistant.jsx` and the `insight` field on each product are placeholders
   for the Google Gemini API. Send the product JSON + user question to Gemini and stream the response into the
   same chat state.

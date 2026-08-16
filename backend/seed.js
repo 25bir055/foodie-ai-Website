@@ -1,6 +1,6 @@
 /**
  * seed.js
- * CSV -> Firestore products collection
+ * CSV → MongoDB products collection
  *
  * Run:
  *   npm run seed
@@ -9,175 +9,176 @@
 const fs = require('fs')
 const path = require('path')
 const csv = require('csv-parser')
+const mongoose = require('mongoose')
+require('dotenv').config()
 
-const { db, firebaseInitialized } = require('./firebase-config')
+const Product = require('./models/Product')
+
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/foodie-ai'
 
 const CSV_PATH = path.join(__dirname, 'products.csv')
 
-function toNumber(value) {
-  if (value === undefined || value === null || value === '') {
-    return null
-  }
+// ── Helpers ────────────────────────────────────────────────────────────────
 
+function toNumber(value) {
+  if (value === undefined || value === null || value === '') return null
   const num = Number(value)
   return Number.isNaN(num) ? null : num
 }
 
 function toArray(value) {
-  if (!value) {
-    return []
-  }
-
+  if (!value) return []
   return String(value)
     .split(/[,;|]/)
     .map(item => item.trim())
     .filter(Boolean)
 }
 
+/**
+ * Convert NutriScore numeric score → 0-100 health score.
+ */
+function computeHealthScore(nutriscoreScore) {
+  if (nutriscoreScore === null || nutriscoreScore === undefined) return null
+  const score = Number(nutriscoreScore)
+  if (Number.isNaN(score)) return null
+  return Math.max(0, Math.min(100, Math.round(100 - ((score + 15) / 55) * 100)))
+}
+
 function readCSV() {
   return new Promise((resolve, reject) => {
     const products = []
-
     fs.createReadStream(CSV_PATH)
       .pipe(csv())
-      .on('data', row => {
-        products.push(row)
-      })
-      .on('end', () => {
-        resolve(products)
-      })
-      .on('error', error => {
-        reject(error)
-      })
+      .on('data', row => products.push(row))
+      .on('end', () => resolve(products))
+      .on('error', error => reject(error))
   })
 }
 
-async function seed() {
-  if (!firebaseInitialized || !db) {
-    console.error(
-      '❌ Firebase Admin is not initialized. Check Firebase configuration.'
-    )
-    return
-  }
+// ── Main ───────────────────────────────────────────────────────────────────
 
+async function seed() {
   if (!fs.existsSync(CSV_PATH)) {
     console.error(`❌ CSV file not found: ${CSV_PATH}`)
-    console.error('Make sure products.csv is inside the backend folder.')
     return
   }
 
   try {
-    console.log('📂 Reading CSV file...')
+    console.log(`Connecting to MongoDB at: ${MONGODB_URI}`)
+    await mongoose.connect(MONGODB_URI)
+    console.log('✅ Connected to MongoDB')
 
+    console.log(`📂 Reading CSV file from ${CSV_PATH}...`)
     const rows = await readCSV()
-
-    console.log(`📦 Found ${rows.length} products in CSV.`)
+    console.log(`📦 Found ${rows.length} rows in CSV.`)
 
     if (rows.length === 0) {
       console.log('⚠️ CSV file is empty.')
+      await mongoose.disconnect()
       return
     }
 
     let uploaded = 0
     let skipped = 0
 
-    // Firestore batch supports max 500 writes.
-    // We use 450 to stay safely below the limit.
-    let batch = db.batch()
-    let batchCount = 0
+    const bulkOps = []
 
-    async function commitBatch() {
-      if (batchCount === 0) {
-        return
-      }
-
-      await batch.commit()
-
-      uploaded += batchCount
-
-      console.log(`✅ Uploaded ${uploaded} products...`)
-
-      batch = db.batch()
-      batchCount = 0
-    }
-
-    for (let index = 0; index < rows.length; index++) {
-      const row = rows[index]
-
-      const barcode = String(row.barcode || '').trim()
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i]
+      const barcode = String(row.barcode || row.code || '').trim()
 
       if (!barcode) {
         skipped++
-        console.log(`⚠️ Skipping row ${index + 2}: barcode missing`)
         continue
       }
 
+      const nutriscoreScore = toNumber(row.nutriscore_score)
+      const healthScore = computeHealthScore(nutriscoreScore)
+
       const product = {
+        id: `p_${barcode}`,
         barcode,
+        name: row.product_name || row.name || '',
+        brand: row.brands || row.brand || '',
+        category: row.categories || row.category || '',
+        price: toNumber(row.price) || 50,
 
-        // Existing frontend-friendly fields
-        name: row.product_name || '',
-        brand: row.brands || '',
-        category: row.categories || '',
+        calories: toNumber(row.energy_kcal || row.calories),
+        energy_kcal: toNumber(row.energy_kcal),
+        fat: toNumber(row.fat_g || row.fat),
+        fat_g: toNumber(row.fat_g),
+        saturatedFat: toNumber(row.saturated_fat_g || row.saturatedFat),
+        saturated_fat_g: toNumber(row.saturated_fat_g),
+        carbohydrates: toNumber(row.carbohydrates_g || row.carbs),
+        carbohydrates_g: toNumber(row.carbohydrates_g),
+        sugar: toNumber(row.sugars_g || row.sugar),
+        sugars_g: toNumber(row.sugars_g),
+        fiber: toNumber(row.fiber_g || row.fiber),
+        fiber_g: toNumber(row.fiber_g),
+        protein: toNumber(row.protein_g || row.protein),
+        protein_g: toNumber(row.protein_g),
+        salt: toNumber(row.salt_g || row.salt),
+        salt_g: toNumber(row.salt_g),
+        sodium: row.sodium_g ? Math.round(Number(row.sodium_g) * 1000) : (toNumber(row.sodium) || null),
+        sodium_g: toNumber(row.sodium_g),
 
-        // CSV fields
+        nutriScore: (row.nutriscore_grade || '').toLowerCase(),
+        nutriscoreGrade: (row.nutriscore_grade || '').toLowerCase(),
+        nutriscore_grade: (row.nutriscore_grade || '').toLowerCase(),
+        nutriscore_score: nutriscoreScore,
+        novaGroup: row.nova_group || '',
+        nova_group: row.nova_group || '',
+
+        healthScore: healthScore ?? toNumber(row.healthScore),
+
+        ingredients: toArray(row.ingredients),
+        ingredientList: toArray(row.ingredients),
+        allergens: toArray(row.allergens || ''),
+
+        imageUrl: row.imageUrl || row.image_url || '',
+        image: row.image || '',
+
         product_name: row.product_name || '',
         brands: row.brands || '',
         categories: row.categories || '',
-        ingredients: row.ingredients || '',
 
-        energy_kcal: toNumber(row.energy_kcal),
-        fat_g: toNumber(row.fat_g),
-        saturated_fat_g: toNumber(row.saturated_fat_g),
-        carbohydrates_g: toNumber(row.carbohydrates_g),
-        sugars_g: toNumber(row.sugars_g),
-        fiber_g: toNumber(row.fiber_g),
-        protein_g: toNumber(row.protein_g),
-        salt_g: toNumber(row.salt_g),
-        sodium_g: toNumber(row.sodium_g),
-
-        nutriscore_grade: row.nutriscore_grade || '',
-        nutriscore_score: toNumber(row.nutriscore_score),
-        nova_group: row.nova_group || '',
-
-        // Useful array versions
-        ingredientList: toArray(row.ingredients),
-        tags: [],
-
-        // Keep these null because CSV doesn't contain them
-        price: null,
-        image: '',
-        healthScore: null,
-        concerningIngredients: [],
-        allergens: []
+        servingSize: '100 g',
+        insight: row.insight || ''
       }
 
-      const safeId = barcode.replace(/\//g, '_')
+      bulkOps.push({
+        updateOne: {
+          filter: { barcode: product.barcode },
+          update: { $set: product },
+          upsert: true
+        }
+      })
+    }
 
-      const ref = db.collection('products').doc(safeId)
-
-      batch.set(ref, product, { merge: true })
-
-      batchCount++
-
-      if (batchCount >= 450) {
-        await commitBatch()
+    if (bulkOps.length > 0) {
+      console.log(`⏳ Seeding ${bulkOps.length} products to MongoDB in batches...`)
+      const chunkSize = 500
+      for (let i = 0; i < bulkOps.length; i += chunkSize) {
+        const chunk = bulkOps.slice(i, i + chunkSize)
+        await Product.bulkWrite(chunk)
+        uploaded += chunk.length
+        console.log(`✅ Seeded ${uploaded}/${bulkOps.length} products...`)
       }
     }
 
-    await commitBatch()
-
     console.log('')
-    console.log('======================================')
-    console.log('🎉 CSV UPLOAD COMPLETED')
-    console.log('======================================')
-    console.log(`📦 Uploaded: ${uploaded}`)
+    console.log('══════════════════════════════════════')
+    console.log('🎉 MONGODB CSV SEED COMPLETED')
+    console.log('══════════════════════════════════════')
+    console.log(`📦 Uploaded/Updated: ${uploaded}`)
     console.log(`⚠️ Skipped: ${skipped}`)
-    console.log('📁 Collection: products')
-    console.log('======================================')
+    console.log('══════════════════════════════════════')
+
+    await mongoose.disconnect()
+    console.log('Disconnected from MongoDB')
   } catch (error) {
-    console.error('❌ CSV upload failed:')
-    console.error(error)
+    console.error('❌ MongoDB seed failed:', error)
+    process.exit(1)
   }
 }
 

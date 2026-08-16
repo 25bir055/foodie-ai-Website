@@ -1,10 +1,8 @@
 import { useState, useEffect } from 'react'
 
-const STORAGE_KEY = 'foodie_ai_scan_history'
-
-export function getStoredScanHistory() {
+export function getStoredScanHistory(userKey = 'anonymous') {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
+    const raw = localStorage.getItem(`foodie_scan_history_${userKey}`)
     return raw ? JSON.parse(raw) : []
   } catch (err) {
     console.error('Failed to read scan history from localStorage:', err)
@@ -12,20 +10,24 @@ export function getStoredScanHistory() {
   }
 }
 
-export function saveScanHistory(list) {
+export function saveScanHistory(list, userKey = 'anonymous') {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(list))
+    localStorage.setItem(`foodie_scan_history_${userKey}`, JSON.stringify(list))
   } catch (err) {
     console.error('Failed to save scan history to localStorage:', err)
   }
 }
 
-export function useScanHistory() {
-  const [history, setHistory] = useState(() => getStoredScanHistory())
+export function useScanHistory(userKey = 'anonymous') {
+  const [history, setHistory] = useState(() => getStoredScanHistory(userKey))
 
   useEffect(() => {
-    saveScanHistory(history)
-  }, [history])
+    setHistory(getStoredScanHistory(userKey))
+  }, [userKey])
+
+  useEffect(() => {
+    saveScanHistory(history, userKey)
+  }, [history, userKey])
 
   const addScan = (product) => {
     if (!product) return
@@ -36,16 +38,16 @@ export function useScanHistory() {
     }
     setHistory((prev) => {
       // Remove existing occurrence if scanned before to move to top
-      const filtered = prev.filter((item) => item.id !== product.id && item.barcode !== product.barcode)
+      const filtered = prev.filter((item) => String(item.id) !== String(product.id) && String(item.barcode) !== String(product.barcode))
       const updated = [newEntry, ...filtered].slice(0, 50) // keep last 50 scans
-      saveScanHistory(updated)
+      saveScanHistory(updated, userKey)
       return updated
     })
   }
 
   const clearHistory = () => {
     setHistory([])
-    localStorage.removeItem(STORAGE_KEY)
+    localStorage.removeItem(`foodie_scan_history_${userKey}`)
   }
 
   return {

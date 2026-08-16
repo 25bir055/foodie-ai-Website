@@ -195,9 +195,38 @@ export default function Search() {
           <Loader2 size={32} className="animate-spin text-leaf" />
         </div>
       ) : results.length ? (
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 stagger-children">
-          {results.map((p) => <ProductCard key={p.id || p.barcode} product={p} />)}
-        </div>
+        category === 'All' ? (
+          <div className="flex flex-col gap-10">
+            {CATEGORIES.filter(c => c !== 'All').map(cat => {
+              const catProducts = results.filter(p => p.category === cat)
+              if (catProducts.length === 0) return null
+              return (
+                <div key={cat}>
+                  <h3 className="font-display text-lg font-semibold mb-4 text-ink dark:text-white border-b border-moss-100 dark:border-white/10 pb-2">{cat}</h3>
+                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 stagger-children">
+                    {catProducts.map((p) => <ProductCard key={p.id || p.barcode} product={p} />)}
+                  </div>
+                </div>
+              )
+            })}
+            {(() => {
+              const otherProducts = results.filter(p => !CATEGORIES.includes(p.category))
+              if (otherProducts.length === 0) return null
+              return (
+                <div key="Other">
+                  <h3 className="font-display text-lg font-semibold mb-4 text-ink dark:text-white border-b border-moss-100 dark:border-white/10 pb-2">Other Products</h3>
+                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 stagger-children">
+                    {otherProducts.map((p) => <ProductCard key={p.id || p.barcode} product={p} />)}
+                  </div>
+                </div>
+              )
+            })()}
+          </div>
+        ) : (
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 stagger-children">
+            {results.map((p) => <ProductCard key={p.id || p.barcode} product={p} />)}
+          </div>
+        )
       ) : (
         <div className="glass-panel p-14 text-center">
           <Package className="mx-auto text-ink/15 dark:text-white/10 mb-3" size={40} />

@@ -3,8 +3,7 @@ import { Moon, Sun, Bell, Shield, LogOut, Palette, Globe, ChevronRight, User, Lo
 import { useNavigate } from 'react-router-dom'
 import AppShell from '../components/AppShell.jsx'
 import { useApp } from '../store.jsx'
-import { changeUserPassword, deleteUserAccount } from '../services/auth'
-import { updateProfile } from 'firebase/auth'
+import { changeUserPassword, deleteUserAccount, updateUserProfile } from '../services/auth'
 
 function Toggle({ checked, onChange, id }) {
   return (
@@ -47,7 +46,7 @@ function SettingsRow({ icon: Icon, title, desc, right, onClick, danger }) {
 }
 
 export default function Settings() {
-  const { theme, toggleTheme, logout, userName, user, scanHistory, clearScanHistory } = useApp()
+  const { theme, toggleTheme, logout, userName, user, setUser, scanHistory, clearScanHistory } = useApp()
   const navigate = useNavigate()
   
   const [notifs, setNotifs] = useState(true)
@@ -63,13 +62,14 @@ export default function Settings() {
 
   const saveName = async () => {
     try {
-      if (user) {
-        await updateProfile(user, { displayName: nameInput })
+      const updated = await updateUserProfile({ displayName: nameInput })
+      if (setUser && updated) {
+        setUser(updated)
       }
       setNameSaved(true)
       setTimeout(() => setNameSaved(false), 2000)
     } catch (err) {
-      alert('Failed to update name.')
+      alert('Failed to update name: ' + (err.message || 'Error'))
     }
   }
 
@@ -88,11 +88,7 @@ export default function Settings() {
         setPassStatus('')
       }, 1500)
     } catch (err) {
-      if (err.code === 'auth/requires-recent-login') {
-        setPassStatus('Please re-login to change password.')
-      } else {
-        setPassStatus(err.message || 'Failed to update password.')
-      }
+      setPassStatus(err.message || 'Failed to update password.')
     }
   }
 
@@ -132,11 +128,7 @@ export default function Settings() {
         await deleteUserAccount()
         navigate('/')
       } catch (err) {
-        if (err.code === 'auth/requires-recent-login') {
-          alert('Please re-login before deleting your account for security reasons.')
-        } else {
-          alert(err.message || 'Could not delete account.')
-        }
+        alert(err.message || 'Could not delete account.')
       }
     }
   }
@@ -171,7 +163,7 @@ export default function Settings() {
           </div>
           <div className="border-t border-moss-100/70 dark:border-white/8">
             <SettingsRow icon={User}  title="Edit Profile"  desc="Update your nutrition profile and goals" onClick={() => navigate('/profile')} />
-            <SettingsRow icon={Lock}  title="Change Password" desc="Update your Firebase account password" onClick={() => setPassModalOpen(true)} />
+            <SettingsRow icon={Lock}  title="Change Password" desc="Update your account password" onClick={() => setPassModalOpen(true)} />
           </div>
         </div>
 
@@ -231,7 +223,7 @@ export default function Settings() {
           <SettingsRow
             icon={Trash2}
             title="Delete Account"
-            desc="Permanently remove your Firebase account"
+            desc="Permanently remove your account and data"
             onClick={handleDeleteAccount}
             danger
           />
@@ -245,7 +237,7 @@ export default function Settings() {
             </div>
             <div>
               <p className="text-sm font-semibold text-ink dark:text-white/90">Foodie AI</p>
-              <p className="text-[11px] text-ink/40 dark:text-white/35">Version 2.0.0 · Firebase & Gemini Enabled</p>
+              <p className="text-[11px] text-ink/40 dark:text-white/35">Version 2.0.0 · MongoDB & Gemini Enabled</p>
             </div>
           </div>
           <span className="text-[11px] bg-leaf/10 text-leaf-dark dark:text-leaf-light px-2.5 py-1 rounded-full font-semibold">Up to date</span>
@@ -267,7 +259,7 @@ export default function Settings() {
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white dark:bg-[#12211A] rounded-2xl w-full max-w-md p-6 shadow-xl">
             <h3 className="font-display font-semibold text-lg text-ink dark:text-white mb-2">Change Password</h3>
-            <p className="text-xs text-ink/50 dark:text-white/40 mb-4">Enter a new password for your Firebase account.</p>
+            <p className="text-xs text-ink/50 dark:text-white/40 mb-4">Enter a new password for your account.</p>
             <form onSubmit={handlePasswordChange} className="flex flex-col gap-3">
               <input
                 type="password"

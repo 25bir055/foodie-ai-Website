@@ -1,22 +1,11 @@
-import { useState, useEffect } from 'react'
-import { auth } from '../firebase'
-import { onAuthStateChanged } from 'firebase/auth'
+import { useApp } from '../store.jsx'
 
 export function useAuth() {
-  const [user, setUser] = useState(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser)
-      setLoading(false)
-    })
-    return () => unsubscribe()
-  }, [])
+  const { user, authLoading, isAuthed } = useApp()
 
   return {
     user,
-    loading,
-    isAuthed: !!user
+    loading: authLoading,
+    isAuthed
   }
 }
