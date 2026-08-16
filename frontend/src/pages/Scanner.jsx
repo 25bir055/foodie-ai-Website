@@ -5,12 +5,13 @@ import {
   Camera, Keyboard, Search, Loader2, AlertCircle,
   ScanBarcode, WifiOff, RefreshCw, CheckCircle2,
   HelpCircle, X, Sparkles, UploadCloud, Image as ImageIcon,
-  ArrowRight, ShieldCheck, Flame, Zap, Check, Edit3, Save
+  ArrowRight, ShieldCheck, Flame, Zap, Check, Edit3, Save,
+  Key, ExternalLink
 } from 'lucide-react'
 import AppShell from '../components/AppShell.jsx'
 import HealthScoreRing from '../components/HealthScoreRing.jsx'
 import { fetchProductByBarcode, createProduct } from '../services/api'
-import { analyzeNutritionImage } from '../services/imageRecognition'
+import { analyzeNutritionImage, getGeminiApiKey, setGeminiApiKey } from '../services/imageRecognition'
 import { useApp } from '../store.jsx'
 
 // ── Internet check helper ───────────────────────────────────────────────────
@@ -49,6 +50,11 @@ export default function Scanner() {
   const [success, setSuccess]             = useState('')
   const [isOnline, setIsOnline]           = useState(true)
   const [checkingNet, setCheckingNet]     = useState(false)
+
+  // Gemini API Key State
+  const [apiKeyInput, setApiKeyInput]     = useState('')
+  const [showKeyModal, setShowKeyModal]   = useState(false)
+  const [hasValidKey, setHasValidKey]     = useState(Boolean(getGeminiApiKey()))
 
   // AI Photo Scanner State
   const fileInputRef = useRef(null)
@@ -181,6 +187,20 @@ export default function Scanner() {
     await handleBarcode(code)
   }
 
+  // ── Handle Key Save ───────────────────────────────────────────────────────
+  const handleSaveApiKey = () => {
+    if (!apiKeyInput.trim() || !apiKeyInput.trim().startsWith('AIzaSy')) {
+      setError('Please enter a valid Google Gemini API Key starting with "AIzaSy...".')
+      return
+    }
+    setGeminiApiKey(apiKeyInput.trim())
+    setHasValidKey(true)
+    setShowKeyModal(false)
+    setApiKeyInput('')
+    setSuccess('✅ Gemini API Key saved successfully!')
+    setError('')
+  }
+
   // ── AI Nutrition Label Image Handler ──────────────────────────────────────
   const handleImageFile = async (file) => {
     if (!file) return
@@ -189,27 +209,27 @@ export default function Scanner() {
     setSuccess('')
     setExtractedProduct(null)
     setAnalyzingPhoto(true)
-    setAnalysisStep('Uploading image & preprocessing...')
+    setAnalysisStep('Uploading image & preparing Gemini Vision...')
 
     try {
       // Create local preview
       const previewUrl = URL.createObjectURL(file)
       setPhotoPreview(previewUrl)
 
-      setAnalysisStep('Gemini Vision AI scanning nutrition table & ingredients...')
+      setAnalysisStep('Gemini Vision reading actual nutrition facts from photo...')
       
       const result = await analyzeNutritionImage(file)
       
       setAnalysisStep('Calculating health score & checking allergens...')
-      await new Promise(r => setTimeout(r, 400))
+      await new Promise(r => setTimeout(r, 300))
 
       setExtractedProduct(result)
       setEditedName(result.name)
       setEditedBrand(result.brand)
-      setSuccess(`AI successfully analyzed "${result.name}"!`)
+      setSuccess(`✅ Successfully analyzed "${result.name}"!`)
     } catch (err) {
       console.error('Photo analysis error:', err)
-      setError('Could not analyze photo. Please ensure the nutrition label is clearly visible and try again.')
+      setError(err.message || 'Could not analyze photo. Please ensure the nutrition label is clearly visible.')
     } finally {
       setAnalyzingPhoto(false)
       setAnalysisStep('')
@@ -301,7 +321,7 @@ export default function Scanner() {
       <div className="max-w-xl mx-auto pb-10 fade-in-up">
 
         {/* Mode Selector Tabs */}
-        <div className="flex gap-1.5 p-1.5 bg-moss-50 dark:bg-white/5 rounded-2xl mb-5 shadow-xs">
+        <div className="flex gap-1.5 p-1.5 bg-moss-50 dark:bg-white/5 rounded-2xl mb-4 shadow-xs">
           <button
             type="button"
             onClick={() => { setActiveTab('ai_photo'); stopScanner(); setError(''); setSuccess('') }}
@@ -343,6 +363,27 @@ export default function Scanner() {
           </button>
         </div>
 
+        {/* Gemini Key Missing Banner */}
+        {!hasValidKey && activeTab === 'ai_photo' && (
+          <div className="mb-4 p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-700/40 text-xs text-amber-900 dark:text-amber-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+            <div className="flex items-start gap-2.5">
+              <Key size={18} className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold">Add Google Gemini API Key for Vision Scanning</p>
+                <p className="text-[11px] opacity-80 mt-0.5">
+                  Get your 100% free Gemini API key from Google AI Studio to accurately extract nutrition details from photos.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowKeyModal(true)}
+              className="px-3.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs shrink-0 flex items-center gap-1.5 transition-colors"
+            >
+              <Key size={13} /> Enter API Key
+            </button>
+          </div>
+        )}
+
         {/* Global Notifications */}
         {success && (
           <div className="mb-4 p-3.5 rounded-xl bg-leaf-light/15 text-leaf-dark dark:text-leaf border border-leaf/30 text-xs font-medium flex items-center gap-2.5 fade-in-up">
@@ -354,7 +395,17 @@ export default function Scanner() {
         {error && (
           <div className="mb-4 p-3.5 rounded-xl bg-clay/10 text-clay text-xs border border-clay/20 flex items-start gap-2.5 fade-in-up">
             <AlertCircle size={17} className="shrink-0 mt-0.5" />
-            <span className="leading-relaxed">{error}</span>
+            <div className="flex-1">
+              <p className="leading-relaxed">{error}</p>
+              {error.toLowerCase().includes('gemini') && (
+                <button
+                  onClick={() => setShowKeyModal(true)}
+                  className="mt-2 text-xs font-semibold underline text-moss-800 dark:text-leaf-light flex items-center gap-1"
+                >
+                  <Key size={13} /> Update Gemini API Key Now
+                </button>
+              )}
+            </div>
           </div>
         )}
 
@@ -367,14 +418,23 @@ export default function Scanner() {
               <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-moss-700 to-leaf text-white flex items-center justify-center shrink-0 shadow-sm">
                 <Sparkles size={20} className="text-leaf-light" />
               </div>
-              <div>
+              <div className="flex-1 min-w-0">
                 <h2 className="font-display text-base font-semibold text-ink dark:text-white flex items-center gap-1.5">
                   AI Nutrition Label Scanner
                 </h2>
                 <p className="text-xs text-ink/50 dark:text-white/40">
-                  Take a photo of any nutrition table or ingredient panel — Gemini AI reads and scores it automatically.
+                  Snap the nutrition facts table on the back of any food packet. Gemini Vision AI reads the real values.
                 </p>
               </div>
+              {hasValidKey && (
+                <button
+                  onClick={() => setShowKeyModal(true)}
+                  title="Configure Gemini API Key"
+                  className="p-2 rounded-xl bg-mint-tint dark:bg-white/5 hover:bg-moss-100 text-moss-700 dark:text-leaf-light shrink-0 transition-colors"
+                >
+                  <Key size={15} />
+                </button>
+              )}
             </div>
 
             {/* Photo Capture / Upload Area */}
@@ -398,12 +458,12 @@ export default function Scanner() {
                     <img src={photoPreview} alt="Nutrition Label Preview" className="w-full h-auto object-contain max-h-72" />
                     
                     {analyzingPhoto && (
-                      <div className="absolute inset-0 bg-black/60 backdrop-blur-xs flex flex-col items-center justify-center p-4 text-white">
+                      <div className="absolute inset-0 bg-black/70 backdrop-blur-xs flex flex-col items-center justify-center p-4 text-white">
                         {/* Laser scan line animation */}
                         <div className="w-full h-1 bg-leaf-light shadow-[0_0_12px_#7FCB9F] absolute top-1/2 -translate-y-1/2 animate-pulse" />
                         <Loader2 size={36} className="animate-spin text-leaf-light mb-3" />
                         <p className="font-display font-medium text-sm text-center">{analysisStep || 'Analyzing Nutrition Label…'}</p>
-                        <p className="text-[11px] text-white/60 mt-1">Extracting calories, protein, sugar, and additives</p>
+                        <p className="text-[11px] text-white/60 mt-1">Extracting exact calories, protein, sugar, and additives</p>
                       </div>
                     )}
                   </div>
@@ -413,7 +473,7 @@ export default function Scanner() {
                       <UploadCloud size={30} />
                     </div>
                     <h3 className="font-display font-medium text-base text-ink dark:text-white">
-                      Take a Photo or Upload Image
+                      Take a Photo or Upload Label
                     </h3>
                     <p className="text-xs text-ink/50 dark:text-white/40 mt-1 max-w-sm mx-auto leading-relaxed">
                       Snap the nutrition facts table on the back of any food packet.
@@ -450,7 +510,7 @@ export default function Scanner() {
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="px-2 py-0.5 rounded-full bg-leaf-light/20 text-leaf-dark dark:text-leaf text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
-                        <Sparkles size={11} /> AI Analyzed Product
+                        <Sparkles size={11} /> Gemini Vision Analyzed
                       </span>
                       <span className="text-xs text-ink/40 dark:text-white/30 font-mono">
                         {extractedProduct.barcode}
@@ -700,6 +760,69 @@ export default function Scanner() {
                 <span className="px-2 py-0.5 rounded-lg bg-mint-tint dark:bg-white/5 font-mono">UPC-A</span>
                 <span className="px-2 py-0.5 rounded-lg bg-mint-tint dark:bg-white/5 font-mono">UPC-E</span>
                 <span className="px-2 py-0.5 rounded-lg bg-mint-tint dark:bg-white/5 font-mono">Code-128</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Gemini Key Setup Modal ─────────────────────────────────────────── */}
+        {showKeyModal && (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="glass-panel max-w-md w-full p-6 rounded-2xl shadow-glow border border-moss-100 dark:border-white/10 fade-in-up">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Key size={20} className="text-moss-700 dark:text-leaf-light" />
+                  <h3 className="font-display font-semibold text-base text-ink dark:text-white">
+                    Google Gemini API Key
+                  </h3>
+                </div>
+                <button
+                  onClick={() => setShowKeyModal(false)}
+                  className="p-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 text-ink/50"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <p className="text-xs text-ink/60 dark:text-white/50 leading-relaxed mb-4">
+                To accurately extract nutrition numbers and ingredients directly from photos, paste your Google Gemini API Key below. (Keys start with <code>AIzaSy...</code>).
+              </p>
+
+              <div className="space-y-3">
+                <input
+                  type="password"
+                  value={apiKeyInput}
+                  onChange={(e) => setApiKeyInput(e.target.value)}
+                  placeholder="AIzaSy..."
+                  className="input-base text-sm font-mono w-full"
+                />
+
+                <div className="flex items-center justify-between text-[11px] text-ink/50 dark:text-white/40">
+                  <span>Don't have a key?</span>
+                  <a
+                    href="https://aistudio.google.com/apikey"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-moss-700 dark:text-leaf-light font-semibold hover:underline flex items-center gap-1"
+                  >
+                    Get Free API Key from Google <ExternalLink size={11} />
+                  </a>
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <button
+                    onClick={handleSaveApiKey}
+                    className="btn-primary flex-1 py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5"
+                  >
+                    <Save size={14} /> Save API Key
+                  </button>
+                  <button
+                    onClick={() => setShowKeyModal(false)}
+                    className="btn-secondary py-2.5 px-4 rounded-xl text-xs font-semibold"
+                  >
+                    Cancel
+                  </button>
+                </div>
               </div>
             </div>
           </div>
