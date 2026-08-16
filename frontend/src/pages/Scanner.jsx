@@ -216,12 +216,9 @@ export default function Scanner() {
       const previewUrl = URL.createObjectURL(file)
       setPhotoPreview(previewUrl)
 
-      setAnalysisStep('Gemini Vision reading actual nutrition facts from photo...')
+      setAnalysisStep('Gemini Vision reading nutrition facts in real-time...')
       
       const result = await analyzeNutritionImage(file)
-      
-      setAnalysisStep('Calculating health score & checking allergens...')
-      await new Promise(r => setTimeout(r, 300))
 
       setExtractedProduct(result)
       setEditedName(result.name)
