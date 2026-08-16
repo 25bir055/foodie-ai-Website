@@ -8,8 +8,8 @@ let cachedModelName = null
 export function getGeminiApiKey() {
   const customKey = typeof localStorage !== 'undefined' ? localStorage.getItem('foodie_gemini_key') : null
   const envKey = import.meta.env.VITE_GEMINI_API_KEY
-  const key = customKey || envKey
-  return (key && key !== 'your-gemini-key' && key.trim().length > 15) ? key.trim() : null
+  const key = (customKey || envKey || '').trim()
+  return (key && key !== 'your-gemini-key' && key.length > 10) ? key : null
 }
 
 export function setGeminiApiKey(key) {
@@ -136,44 +136,9 @@ function parseFastJson(text) {
   try {
     return JSON.parse(cleaned)
   } catch (e) {
-    console.warn('JSON direct parse error, attempting regex extraction:', e.message)
+    console.warn('JSON direct parse error:', e.message)
     return null
   }
-}
-
-/**
- * Discover the active Gemini model for this user's API Key
- */
-async function discoverWorkingGeminiModel(apiKey) {
-  if (cachedModelName) return cachedModelName
-
-  try {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`)
-    if (res.ok) {
-      const data = await res.json()
-      if (Array.isArray(data.models) && data.models.length > 0) {
-        const supported = data.models
-          .filter(m => m.supportedGenerationMethods?.includes('generateContent'))
-          .map(m => m.name.replace(/^models\//, ''))
-
-        console.log('Available models for this API key from Google:', supported)
-
-        const match = supported.find(m => m.includes('flash') && !m.includes('8b')) ||
-                      supported.find(m => m.includes('flash')) ||
-                      supported.find(m => m.includes('pro')) ||
-                      supported[0]
-
-        if (match) {
-          cachedModelName = match
-          return match
-        }
-      }
-    }
-  } catch (err) {
-    console.warn('Model list discovery error:', err.message)
-  }
-
-  return 'gemini-1.5-flash'
 }
 
 /**
@@ -181,40 +146,44 @@ async function discoverWorkingGeminiModel(apiKey) {
  */
 export async function analyzeNutritionImage(imageFile) {
   const apiKey = getGeminiApiKey()
+  
   if (!apiKey) {
     throw new Error(
-      'Gemini API Key is missing. Please click "Enter API Key" and paste your free key from https://aistudio.google.com/apikey.'
+      'Gemini API Key is missing. Please click "Enter API Key" and paste your Google AI Studio key (starts with "AIzaSy...").'
+    )
+  }
+
+  // Check if user entered an invalid token starting with AQ.
+  if (apiKey.startsWith('AQ.') || !apiKey.startsWith('AIzaSy')) {
+    throw new Error(
+      `Invalid Gemini API Key format (Key starts with "${apiKey.substring(0, 5)}..."). Google Gemini API Keys from Google AI Studio ALWAYS start with "AIzaSy...". Please create a free key at https://aistudio.google.com/apikey and paste it.`
     )
   }
 
   // 1. High-speed client-side image compression (~30ms)
   const { base64Data, dataUrl, mimeType } = await compressAndResizeImage(imageFile, 1000, 1000, 0.82)
 
-  // 2. Discover live working model
-  const activeModelName = await discoverWorkingGeminiModel(apiKey)
-  console.log(`🚀 Using Gemini model: ${activeModelName}`)
+  const prompt = `You are an expert food scientist and nutritionist for Foodie AI.
+Analyze this food image:
+- If it shows a Nutrition Facts Table or Ingredients list, extract the EXACT values printed on it.
+- If it shows the front of a food package (e.g. Lays, Maggi, Oreo, Britannia, Cadbury, Oats, Milk), identify the exact product and brand, and provide its standard nutritional profile per 100g.
+- If it shows a fruit or dish, identify it and provide standard nutritional values.
 
-  const prompt = `You are a food scientist and nutritionist for Foodie AI.
-Analyze this food image.
-- If it shows a Nutrition Facts Table or Ingredients list, extract the EXACT values.
-- If it shows the front of a food package (e.g. Lays, Maggi, Oreo, Britannia, Cadbury, Oats, Milk), identify the product and brand, and provide its standard nutritional profile per 100g.
-- If it shows a food dish or fruit, identify it and estimate standard nutritional values.
-
-You MUST return ONLY a valid JSON object matching this schema (do NOT return markdown text outside JSON):
+Output ONLY a valid JSON object matching this schema:
 {
-  "name": "Product Name (e.g. Britannia NutriChoice Oats, Saffola Masala Oats, Amul Butter, Maggi 2-Minute Noodles)",
-  "brand": "Brand Name (e.g. Britannia, Nestle, Amul, Saffola, Kellogg's)",
+  "name": "Exact Product Name (e.g. Britannia NutriChoice Oats, Saffola Masala Oats, Amul Butter, Maggi Noodles)",
+  "brand": "Brand Name",
   "category": "Category (e.g. Breakfast & Cereal, Dairy, Snacks & Biscuits, Beverages, Noodles & Pasta)",
   "barcode": "Barcode numbers if visible, else empty",
   "servingSize": "100g",
-  "calories": 350,
-  "protein": 7.5,
-  "carbohydrates": 62.0,
-  "sugar": 5.0,
-  "fat": 12.0,
-  "saturatedFat": 3.5,
-  "fiber": 4.0,
-  "sodium": 350,
+  "calories": 0,
+  "protein": 0,
+  "carbohydrates": 0,
+  "sugar": 0,
+  "fat": 0,
+  "saturatedFat": 0,
+  "fiber": 0,
+  "sodium": 0,
   "ingredients": ["ingredient 1", "ingredient 2", "ingredient 3"],
   "allergens": ["Milk, Wheat, Peanuts, Soy if detected"],
   "concerningIngredients": ["Additives, palm oil, artificial colors if found"],
@@ -224,69 +193,62 @@ You MUST return ONLY a valid JSON object matching this schema (do NOT return mar
 }`
 
   let parsed = null
+  let lastErr = null
 
-  // 3. Call via Official SDK
-  try {
-    const genAI = new GoogleGenerativeAI(apiKey)
-    const model = genAI.getGenerativeModel({
-      model: activeModelName,
-      generationConfig: { maxOutputTokens: 800 }
-    })
-    
-    const result = await model.generateContent([
-      prompt,
-      {
-        inlineData: {
-          data: base64Data,
-          mimeType: mimeType || 'image/jpeg'
+  // 2. Call via Official Google Generative AI SDK with gemini-1.5-flash
+  const models = ['gemini-1.5-flash', 'gemini-1.5-flash-latest', 'gemini-2.0-flash', 'gemini-1.5-pro']
+
+  for (const modelName of models) {
+    try {
+      console.log(`🧠 Calling Gemini with model: ${modelName}...`)
+      const genAI = new GoogleGenerativeAI(apiKey)
+      const model = genAI.getGenerativeModel({
+        model: modelName,
+        generationConfig: { maxOutputTokens: 800 }
+      })
+
+      const result = await model.generateContent([
+        prompt,
+        {
+          inlineData: {
+            data: base64Data,
+            mimeType: mimeType || 'image/jpeg'
+          }
         }
-      }
-    ])
+      ])
 
-    const response = await result.response
-    const rawText = response.text()
-    console.log('Gemini extraction output:', rawText)
-    parsed = parseFastJson(rawText)
-  } catch (sdkErr) {
-    console.warn(`Primary model ${activeModelName} failed:`, sdkErr.message)
-
-    // Try fallback models if primary failed
-    const fallbackModels = ['gemini-1.5-flash', 'gemini-1.5-flash-latest', 'gemini-2.0-flash-exp', 'gemini-pro-vision']
-    for (const fbModel of fallbackModels) {
-      if (fbModel === activeModelName) continue
-      try {
-        const genAI = new GoogleGenerativeAI(apiKey)
-        const model = genAI.getGenerativeModel({ model: fbModel })
-        const result = await model.generateContent([
-          prompt,
-          { inlineData: { data: base64Data, mimeType: mimeType || 'image/jpeg' } }
-        ])
-        const response = await result.response
-        parsed = parseFastJson(response.text())
-        if (parsed) {
-          cachedModelName = fbModel
-          break
-        }
-      } catch (e) {
-        console.warn(`Fallback ${fbModel} also failed:`, e.message)
+      const response = await result.response
+      const rawText = response.text()
+      console.log('Gemini extraction output:', rawText)
+      parsed = parseFastJson(rawText)
+      if (parsed && (parsed.name || parsed.calories)) {
+        break
       }
+    } catch (err) {
+      console.warn(`Model ${modelName} failed:`, err.message)
+      lastErr = err
     }
   }
 
-  // If Gemini produced a partial or estimated result, fill defaults safely
-  const productName = parsed?.name || 'Scanned Food Product'
-  const brandName = parsed?.brand || 'Foodie Scanned'
-  const categoryName = parsed?.category || 'Food & Grocery'
-  const calories = parseCleanNumber(parsed?.calories, 200)
-  const protein = parseCleanNumber(parsed?.protein, 5.0)
-  const carbs = parseCleanNumber(parsed?.carbohydrates || parsed?.carbs, 28.0)
-  const sugar = parseCleanNumber(parsed?.sugar, 4.0)
-  const fat = parseCleanNumber(parsed?.fat, 6.0)
-  const saturatedFat = parseCleanNumber(parsed?.saturatedFat, 2.0)
-  const fiber = parseCleanNumber(parsed?.fiber, 3.0)
-  const sodium = parseCleanNumber(parsed?.sodium, 150)
-  const healthScore = Number(parsed?.healthScore) || calculateHealthScore({ calories, sugar, saturatedFat, sodium, protein, fiber })
-  const barcode = String(parsed?.barcode || `ai_${Date.now()}`).trim()
+  if (!parsed || (!parsed.name && !parsed.calories)) {
+    throw new Error(
+      `Gemini Vision failed to analyze image: ${lastErr?.message || 'Please ensure your API key from https://aistudio.google.com/apikey is active.'}`
+    )
+  }
+
+  const productName = parsed.name || 'Scanned Food Item'
+  const brandName = parsed.brand || 'Foodie Scanned'
+  const categoryName = parsed.category || 'Food & Grocery'
+  const calories = parseCleanNumber(parsed.calories, 150)
+  const protein = parseCleanNumber(parsed.protein, 3.0)
+  const carbs = parseCleanNumber(parsed.carbohydrates || parsed.carbs, 20.0)
+  const sugar = parseCleanNumber(parsed.sugar, 3.0)
+  const fat = parseCleanNumber(parsed.fat, 4.0)
+  const saturatedFat = parseCleanNumber(parsed.saturatedFat, 1.0)
+  const fiber = parseCleanNumber(parsed.fiber, 2.0)
+  const sodium = parseCleanNumber(parsed.sodium, 100)
+  const healthScore = Number(parsed.healthScore) || calculateHealthScore({ calories, sugar, saturatedFat, sodium, protein, fiber })
+  const barcode = String(parsed.barcode || `ai_${Date.now()}`).trim()
 
   return {
     id: `p_${barcode}`,
@@ -294,9 +256,9 @@ You MUST return ONLY a valid JSON object matching this schema (do NOT return mar
     name: productName,
     brand: brandName,
     category: categoryName,
-    price: parsed?.price || 60,
+    price: parsed.price || 60,
     healthScore,
-    nutriScore: parsed?.nutriScore || (healthScore >= 80 ? 'a' : healthScore >= 60 ? 'b' : healthScore >= 45 ? 'c' : 'd'),
+    nutriScore: parsed.nutriScore || (healthScore >= 80 ? 'a' : healthScore >= 60 ? 'b' : healthScore >= 45 ? 'c' : 'd'),
     calories,
     protein,
     carbs,
@@ -305,21 +267,21 @@ You MUST return ONLY a valid JSON object matching this schema (do NOT return mar
     saturatedFat,
     fiber,
     sodium,
-    ingredients: Array.isArray(parsed?.ingredients) && parsed.ingredients.length > 0
+    ingredients: Array.isArray(parsed.ingredients) && parsed.ingredients.length > 0
       ? parsed.ingredients
-      : ['Natural Ingredients', 'Whole Grains', 'Minerals'],
-    ingredientList: Array.isArray(parsed?.ingredients) && parsed.ingredients.length > 0
+      : ['Natural Ingredients'],
+    ingredientList: Array.isArray(parsed.ingredients) && parsed.ingredients.length > 0
       ? parsed.ingredients
-      : ['Natural Ingredients', 'Whole Grains', 'Minerals'],
-    allergens: Array.isArray(parsed?.allergens) ? parsed.allergens : [],
-    concerningIngredients: Array.isArray(parsed?.concerningIngredients) ? parsed.concerningIngredients : [],
+      : ['Natural Ingredients'],
+    allergens: Array.isArray(parsed.allergens) ? parsed.allergens : [],
+    concerningIngredients: Array.isArray(parsed.concerningIngredients) ? parsed.concerningIngredients : [],
     tags: [
       categoryName,
       healthScore >= 70 ? 'Nutritious' : healthScore >= 50 ? 'Moderate' : 'Processed',
       protein >= 8 ? 'High Protein' : '',
       sugar > 15 ? 'High Sugar Alert' : ''
     ].filter(Boolean),
-    insight: parsed?.insight || `AI Vision scanned ${productName} with ${calories} kcal and health score of ${healthScore}/100.`,
+    insight: parsed.insight || `AI Vision scanned ${productName} with ${calories} kcal and health score of ${healthScore}/100.`,
     imageUrl: dataUrl,
     image: '🥗',
     source: 'Gemini Vision AI'
