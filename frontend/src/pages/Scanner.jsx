@@ -4,10 +4,14 @@ import { Html5Qrcode } from 'html5-qrcode'
 import {
   Camera, Keyboard, Search, Loader2, AlertCircle,
   ScanBarcode, WifiOff, RefreshCw, CheckCircle2,
-  HelpCircle, X
+  HelpCircle, X, Sparkles, UploadCloud, Image as ImageIcon,
+  ArrowRight, ShieldCheck, Flame, Zap, Check, Edit3, Save
 } from 'lucide-react'
 import AppShell from '../components/AppShell.jsx'
-import { fetchProductByBarcode } from '../services/api'
+import HealthScoreRing from '../components/HealthScoreRing.jsx'
+import { fetchProductByBarcode, createProduct } from '../services/api'
+import { analyzeNutritionImage } from '../services/imageRecognition'
+import { useApp } from '../store.jsx'
 
 // ── Internet check helper ───────────────────────────────────────────────────
 async function checkInternet() {
@@ -32,6 +36,10 @@ async function checkInternet() {
 
 export default function Scanner() {
   const navigate = useNavigate()
+  const { addScanToHistory } = useApp()
+
+  // Active Mode: 'barcode' | 'ai_photo' | 'manual'
+  const [activeTab, setActiveTab] = useState('ai_photo')
 
   // Barcode Scanner State
   const scannerRef = useRef(null)
@@ -41,6 +49,17 @@ export default function Scanner() {
   const [success, setSuccess]             = useState('')
   const [isOnline, setIsOnline]           = useState(true)
   const [checkingNet, setCheckingNet]     = useState(false)
+
+  // AI Photo Scanner State
+  const fileInputRef = useRef(null)
+  const [photoPreview, setPhotoPreview]     = useState(null)
+  const [analyzingPhoto, setAnalyzingPhoto] = useState(false)
+  const [analysisStep, setAnalysisStep]     = useState('')
+  const [extractedProduct, setExtractedProduct] = useState(null)
+  const [savingToDb, setSavingToDb]         = useState(false)
+  const [isEditing, setIsEditing]           = useState(false)
+  const [editedName, setEditedName]         = useState('')
+  const [editedBrand, setEditedBrand]       = useState('')
 
   // ── Network check ─────────────────────────────────────────────────────────
   const verifyNetwork = useCallback(async () => {
@@ -98,9 +117,10 @@ export default function Scanner() {
     try {
       const product = await fetchProductByBarcode(code)
       if (product) {
-        navigate(`/product/${product.firestoreId || product.id}`)
+        addScanToHistory(product)
+        navigate(`/product/${product.id || product.barcode}`)
       } else {
-        setError(`Product with barcode "${code}" not found in our database.`)
+        setError(`Product with barcode "${code}" not found in database. You can scan its nutrition label using the AI Photo Scanner!`)
         setSuccess('')
       }
     } catch (err) {
@@ -110,7 +130,7 @@ export default function Scanner() {
     }
   }
 
-  // ── Start Camera Scanner ──────────────────────────────────────────────────
+  // ── Start Camera Barcode Scanner ──────────────────────────────────────────
   const startScanner = async () => {
     setError('')
     setSuccess('')
@@ -130,7 +150,6 @@ export default function Scanner() {
           disableFlip: false,
           qrbox: { width: 280, height: 180 },
           aspectRatio: 1.777778,
-          // Support EAN-13, EAN-8, UPC-A, UPC-E, Code 128, QR
           formatsToSupport: [1, 2, 4, 5, 7, 8]
         },
         async (decodedText) => {
@@ -143,14 +162,14 @@ export default function Scanner() {
       console.error('Camera startup error:', err)
       setScanning(false)
       if (err.message && err.message.toLowerCase().includes('permission')) {
-        setError('Camera permission denied. Please allow camera access in your browser settings.')
+        setError('Camera permission denied. Please allow camera access in your browser.')
       } else {
-        setError('Camera could not start. Please verify camera permissions and use HTTPS or localhost.')
+        setError('Camera could not start. Please verify camera permissions.')
       }
     }
   }
 
-  // ── Manual Barcode Entry ──────────────────────────────────────────────────
+  // ── Handle Manual Search ──────────────────────────────────────────────────
   const handleManualSearch = async () => {
     const code = manualBarcode.trim()
     if (!code) {
@@ -160,6 +179,85 @@ export default function Scanner() {
     const online = await verifyNetwork()
     if (!online) return
     await handleBarcode(code)
+  }
+
+  // ── AI Nutrition Label Image Handler ──────────────────────────────────────
+  const handleImageFile = async (file) => {
+    if (!file) return
+
+    setError('')
+    setSuccess('')
+    setExtractedProduct(null)
+    setAnalyzingPhoto(true)
+    setAnalysisStep('Uploading image & preprocessing...')
+
+    try {
+      // Create local preview
+      const previewUrl = URL.createObjectURL(file)
+      setPhotoPreview(previewUrl)
+
+      setAnalysisStep('Gemini Vision AI scanning nutrition table & ingredients...')
+      
+      const result = await analyzeNutritionImage(file)
+      
+      setAnalysisStep('Calculating health score & checking allergens...')
+      await new Promise(r => setTimeout(r, 400))
+
+      setExtractedProduct(result)
+      setEditedName(result.name)
+      setEditedBrand(result.brand)
+      setSuccess(`AI successfully analyzed "${result.name}"!`)
+    } catch (err) {
+      console.error('Photo analysis error:', err)
+      setError('Could not analyze photo. Please ensure the nutrition label is clearly visible and try again.')
+    } finally {
+      setAnalyzingPhoto(false)
+      setAnalysisStep('')
+    }
+  }
+
+  // Save AI extracted product to MongoDB & Navigate
+  const handleSaveToDatabase = async () => {
+    if (!extractedProduct) return
+
+    setSavingToDb(true)
+    setError('')
+
+    try {
+      const finalProduct = {
+        ...extractedProduct,
+        name: editedName || extractedProduct.name,
+        brand: editedBrand || extractedProduct.brand
+      }
+
+      // Save directly to MongoDB via backend
+      const saved = await createProduct(finalProduct)
+      
+      // Store in session storage so it displays immediately
+      sessionStorage.setItem(`foodie_product_${saved.id || finalProduct.id}`, JSON.stringify(saved))
+      
+      // Add to personal scan history
+      addScanToHistory(saved)
+
+      // Navigate to detailed view
+      navigate(`/product/${saved.id || finalProduct.id}`)
+    } catch (err) {
+      console.error('Save to MongoDB error:', err)
+      setError('Failed to save to database. Opening product details directly...')
+      addScanToHistory(extractedProduct)
+      navigate(`/product/${extractedProduct.id}`)
+    } finally {
+      setSavingToDb(false)
+    }
+  }
+
+  // Reset Photo Scanner
+  const handleResetPhoto = () => {
+    setPhotoPreview(null)
+    setExtractedProduct(null)
+    setError('')
+    setSuccess('')
+    if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   useEffect(() => {
@@ -181,7 +279,7 @@ export default function Scanner() {
               No Internet Connection
             </h2>
             <p className="text-sm text-ink/50 dark:text-white/40 mt-2 max-w-xs mx-auto leading-relaxed">
-              Please connect to the internet to scan products and retrieve product information.
+              Please connect to the internet to scan products and retrieve AI nutrition details.
             </p>
           </div>
           <button
@@ -202,116 +300,410 @@ export default function Scanner() {
     <AppShell title="Scan Product">
       <div className="max-w-xl mx-auto pb-10 fade-in-up">
 
-        {/* Header banner */}
-        <div className="glass-panel p-4 mb-5 flex items-center gap-3.5 border border-moss-100/70 dark:border-white/10 shadow-soft">
-          <div className="h-11 w-11 rounded-xl bg-moss-700 text-white flex items-center justify-center shrink-0 shadow-sm">
-            <ScanBarcode size={22} />
-          </div>
-          <div>
-            <h2 className="font-display text-base font-semibold text-ink dark:text-white">
-              Barcode Product Scanner
-            </h2>
-            <p className="text-xs text-ink/50 dark:text-white/40">
-              Point your camera at any product barcode (EAN-13, EAN-8, UPC-A, UPC-E)
-            </p>
-          </div>
+        {/* Mode Selector Tabs */}
+        <div className="flex gap-1.5 p-1.5 bg-moss-50 dark:bg-white/5 rounded-2xl mb-5 shadow-xs">
+          <button
+            type="button"
+            onClick={() => { setActiveTab('ai_photo'); stopScanner(); setError(''); setSuccess('') }}
+            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+              activeTab === 'ai_photo'
+                ? 'bg-moss-700 text-white shadow-soft'
+                : 'text-ink/60 dark:text-white/50 hover:text-ink dark:hover:text-white'
+            }`}
+          >
+            <Sparkles size={15} className={activeTab === 'ai_photo' ? 'text-leaf-light animate-pulse' : ''} />
+            <span>AI Label Photo</span>
+            <span className="hidden sm:inline-block px-1.5 py-0.2 rounded-full bg-leaf-light/20 text-[10px] text-leaf-light font-bold uppercase">New</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => { setActiveTab('barcode'); setError(''); setSuccess('') }}
+            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+              activeTab === 'barcode'
+                ? 'bg-moss-700 text-white shadow-soft'
+                : 'text-ink/60 dark:text-white/50 hover:text-ink dark:hover:text-white'
+            }`}
+          >
+            <Camera size={15} />
+            <span>Barcode Camera</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => { setActiveTab('manual'); stopScanner(); setError(''); setSuccess('') }}
+            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+              activeTab === 'manual'
+                ? 'bg-moss-700 text-white shadow-soft'
+                : 'text-ink/60 dark:text-white/50 hover:text-ink dark:hover:text-white'
+            }`}
+          >
+            <Keyboard size={15} />
+            <span>Manual Code</span>
+          </button>
         </div>
 
-        {/* Camera Viewport Card */}
-        <div className="glass-panel p-5 border border-moss-100/70 dark:border-white/10 shadow-soft">
-          <div className="flex items-center justify-between mb-3.5">
-            <div className="flex items-center gap-2">
-              <Camera size={18} className="text-moss-700 dark:text-leaf-light" />
-              <h3 className="font-semibold text-ink dark:text-white text-sm">
-                Live Barcode Camera
-              </h3>
+        {/* Global Notifications */}
+        {success && (
+          <div className="mb-4 p-3.5 rounded-xl bg-leaf-light/15 text-leaf-dark dark:text-leaf border border-leaf/30 text-xs font-medium flex items-center gap-2.5 fade-in-up">
+            <CheckCircle2 size={17} className="shrink-0 text-leaf" />
+            <span>{success}</span>
+          </div>
+        )}
+
+        {error && (
+          <div className="mb-4 p-3.5 rounded-xl bg-clay/10 text-clay text-xs border border-clay/20 flex items-start gap-2.5 fade-in-up">
+            <AlertCircle size={17} className="shrink-0 mt-0.5" />
+            <span className="leading-relaxed">{error}</span>
+          </div>
+        )}
+
+        {/* ── TAB 1: AI NUTRITION LABEL PHOTO SCANNER ────────────────────────── */}
+        {activeTab === 'ai_photo' && (
+          <div className="space-y-4">
+            
+            {/* Header banner */}
+            <div className="glass-panel p-4 flex items-center gap-3.5 border border-moss-100/70 dark:border-white/10 shadow-soft">
+              <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-moss-700 to-leaf text-white flex items-center justify-center shrink-0 shadow-sm">
+                <Sparkles size={20} className="text-leaf-light" />
+              </div>
+              <div>
+                <h2 className="font-display text-base font-semibold text-ink dark:text-white flex items-center gap-1.5">
+                  AI Nutrition Label Scanner
+                </h2>
+                <p className="text-xs text-ink/50 dark:text-white/40">
+                  Take a photo of any nutrition table or ingredient panel — Gemini AI reads and scores it automatically.
+                </p>
+              </div>
             </div>
-            {scanning && (
-              <span className="flex items-center gap-1.5 text-xs font-semibold text-leaf px-2.5 py-0.5 rounded-full bg-leaf/10 animate-pulse">
-                <span className="h-2 w-2 rounded-full bg-leaf" /> Scanning Live
-              </span>
+
+            {/* Photo Capture / Upload Area */}
+            {!extractedProduct && (
+              <div className="glass-panel p-6 border border-dashed border-moss-200 dark:border-white/15 text-center rounded-2xl relative overflow-hidden">
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  accept="image/*"
+                  capture="environment"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (file) handleImageFile(file)
+                  }}
+                  className="hidden"
+                  id="label-photo-upload"
+                />
+
+                {photoPreview ? (
+                  <div className="relative rounded-xl overflow-hidden max-h-72 mx-auto mb-4 border border-moss-100 dark:border-white/10 bg-black/5">
+                    <img src={photoPreview} alt="Nutrition Label Preview" className="w-full h-auto object-contain max-h-72" />
+                    
+                    {analyzingPhoto && (
+                      <div className="absolute inset-0 bg-black/60 backdrop-blur-xs flex flex-col items-center justify-center p-4 text-white">
+                        {/* Laser scan line animation */}
+                        <div className="w-full h-1 bg-leaf-light shadow-[0_0_12px_#7FCB9F] absolute top-1/2 -translate-y-1/2 animate-pulse" />
+                        <Loader2 size={36} className="animate-spin text-leaf-light mb-3" />
+                        <p className="font-display font-medium text-sm text-center">{analysisStep || 'Analyzing Nutrition Label…'}</p>
+                        <p className="text-[11px] text-white/60 mt-1">Extracting calories, protein, sugar, and additives</p>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="py-6">
+                    <div className="h-16 w-16 rounded-2xl bg-mint-tint dark:bg-white/5 flex items-center justify-center mx-auto mb-3 text-moss-700 dark:text-leaf-light">
+                      <UploadCloud size={30} />
+                    </div>
+                    <h3 className="font-display font-medium text-base text-ink dark:text-white">
+                      Take a Photo or Upload Image
+                    </h3>
+                    <p className="text-xs text-ink/50 dark:text-white/40 mt-1 max-w-sm mx-auto leading-relaxed">
+                      Snap the nutrition facts table on the back of any food packet.
+                    </p>
+                  </div>
+                )}
+
+                <div className="flex flex-col sm:flex-row gap-2.5 mt-2 justify-center">
+                  <label
+                    htmlFor="label-photo-upload"
+                    className="btn-primary py-3 px-6 rounded-xl text-xs font-semibold cursor-pointer flex items-center justify-center gap-2 shadow-soft"
+                  >
+                    <Camera size={16} />
+                    <span>{photoPreview ? 'Take / Choose Another Photo' : 'Capture Nutrition Label'}</span>
+                  </label>
+
+                  {photoPreview && !analyzingPhoto && (
+                    <button
+                      type="button"
+                      onClick={handleResetPhoto}
+                      className="btn-secondary py-3 px-4 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5"
+                    >
+                      <X size={15} /> Clear
+                    </button>
+                  )}
+                </div>
+              </div>
             )}
+
+            {/* ── Extracted Product Review Card ──────────────────────────────── */}
+            {extractedProduct && (
+              <div className="glass-panel p-5 sm:p-6 border border-leaf/30 shadow-glow rounded-2xl fade-in-up">
+                <div className="flex items-start justify-between gap-3 pb-4 border-b border-moss-100 dark:border-white/10">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="px-2 py-0.5 rounded-full bg-leaf-light/20 text-leaf-dark dark:text-leaf text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
+                        <Sparkles size={11} /> AI Analyzed Product
+                      </span>
+                      <span className="text-xs text-ink/40 dark:text-white/30 font-mono">
+                        {extractedProduct.barcode}
+                      </span>
+                    </div>
+
+                    {isEditing ? (
+                      <div className="space-y-2 mt-2">
+                        <input
+                          type="text"
+                          value={editedName}
+                          onChange={(e) => setEditedName(e.target.value)}
+                          placeholder="Product Name"
+                          className="input-base text-sm font-semibold w-full py-1.5 px-2.5"
+                        />
+                        <input
+                          type="text"
+                          value={editedBrand}
+                          onChange={(e) => setEditedBrand(e.target.value)}
+                          placeholder="Brand Name"
+                          className="input-base text-xs w-full py-1 px-2.5"
+                        />
+                      </div>
+                    ) : (
+                      <>
+                        <h3 className="font-display font-semibold text-lg text-ink dark:text-white">
+                          {editedName || extractedProduct.name}
+                        </h3>
+                        <p className="text-xs text-ink/50 dark:text-white/40">
+                          {editedBrand || extractedProduct.brand} · {extractedProduct.category}
+                        </p>
+                      </>
+                    )}
+                  </div>
+
+                  <div className="flex flex-col items-center gap-1 shrink-0">
+                    <HealthScoreRing score={extractedProduct.healthScore} size={60} strokeWidth={6} />
+                    <span className="text-[10px] font-semibold text-ink/50 dark:text-white/40">Health Score</span>
+                  </div>
+                </div>
+
+                {/* Nutrition Grid */}
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 my-4 text-center">
+                  <div className="p-2.5 rounded-xl bg-moss-50 dark:bg-white/5 border border-moss-100/60 dark:border-white/5">
+                    <p className="text-[10px] text-ink/45 dark:text-white/40 uppercase">Calories</p>
+                    <p className="data-num font-bold text-sm text-ink dark:text-white mt-0.5">{extractedProduct.calories}</p>
+                    <p className="text-[9px] text-ink/30 dark:text-white/30">kcal</p>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-moss-50 dark:bg-white/5 border border-moss-100/60 dark:border-white/5">
+                    <p className="text-[10px] text-ink/45 dark:text-white/40 uppercase">Protein</p>
+                    <p className="data-num font-bold text-sm text-leaf-dark dark:text-leaf-light mt-0.5">{extractedProduct.protein}g</p>
+                    <p className="text-[9px] text-ink/30 dark:text-white/30">protein</p>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-moss-50 dark:bg-white/5 border border-moss-100/60 dark:border-white/5">
+                    <p className="text-[10px] text-ink/45 dark:text-white/40 uppercase">Sugar</p>
+                    <p className={`data-num font-bold text-sm mt-0.5 ${extractedProduct.sugar > 15 ? 'text-clay' : 'text-ink dark:text-white'}`}>
+                      {extractedProduct.sugar}g
+                    </p>
+                    <p className="text-[9px] text-ink/30 dark:text-white/30">sugar</p>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-moss-50 dark:bg-white/5 border border-moss-100/60 dark:border-white/5">
+                    <p className="text-[10px] text-ink/45 dark:text-white/40 uppercase">Carbs</p>
+                    <p className="data-num font-bold text-sm text-ink dark:text-white mt-0.5">{extractedProduct.carbs}g</p>
+                    <p className="text-[9px] text-ink/30 dark:text-white/30">carbs</p>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-moss-50 dark:bg-white/5 border border-moss-100/60 dark:border-white/5">
+                    <p className="text-[10px] text-ink/45 dark:text-white/40 uppercase">Fat</p>
+                    <p className="data-num font-bold text-sm text-ink dark:text-white mt-0.5">{extractedProduct.fat}g</p>
+                    <p className="text-[9px] text-ink/30 dark:text-white/30">total fat</p>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-moss-50 dark:bg-white/5 border border-moss-100/60 dark:border-white/5">
+                    <p className="text-[10px] text-ink/45 dark:text-white/40 uppercase">Sodium</p>
+                    <p className="data-num font-bold text-sm text-ink dark:text-white mt-0.5">{extractedProduct.sodium}</p>
+                    <p className="text-[9px] text-ink/30 dark:text-white/30">mg</p>
+                  </div>
+                </div>
+
+                {/* AI Insight */}
+                {extractedProduct.insight && (
+                  <div className="p-3 rounded-xl bg-leaf-light/10 border border-leaf/20 text-xs text-moss-800 dark:text-leaf-light mb-4 flex items-start gap-2">
+                    <Zap size={15} className="shrink-0 text-leaf mt-0.5" />
+                    <span>{extractedProduct.insight}</span>
+                  </div>
+                )}
+
+                {/* Allergens & Ingredients pills */}
+                {extractedProduct.allergens?.length > 0 && (
+                  <div className="mb-4">
+                    <p className="text-[11px] font-semibold text-clay uppercase mb-1.5">Detected Allergens</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {extractedProduct.allergens.map((a) => (
+                        <span key={a} className="tag-chip-alert text-xs">⚠️ {a}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div className="flex flex-col sm:flex-row gap-2.5 pt-2 border-t border-moss-100 dark:border-white/10">
+                  <button
+                    type="button"
+                    onClick={handleSaveToDatabase}
+                    disabled={savingToDb}
+                    className="btn-primary flex-1 py-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 shadow-soft"
+                  >
+                    {savingToDb ? (
+                      <>
+                        <Loader2 size={16} className="animate-spin" />
+                        <span>Saving to Database…</span>
+                      </>
+                    ) : (
+                      <>
+                        <Save size={16} />
+                        <span>Save to MongoDB & View Details</span>
+                        <ArrowRight size={14} />
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsEditing(!isEditing)}
+                    className="btn-secondary py-3 px-4 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5"
+                  >
+                    <Edit3 size={15} />
+                    <span>{isEditing ? 'Done Editing' : 'Edit Info'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleResetPhoto}
+                    className="btn-secondary py-3 px-4 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5"
+                  >
+                    <RefreshCw size={14} />
+                    <span>Scan Another</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
           </div>
+        )}
 
-          {/* Camera display */}
-          <div
-            id="barcode-reader"
-            className="w-full overflow-hidden rounded-2xl bg-black min-h-[260px] border border-moss-100/40 dark:border-white/5"
-          />
-
-          {!scanning ? (
-            <button
-              onClick={startScanner}
-              className="w-full mt-4 bg-moss-700 hover:bg-moss-600 text-white font-semibold py-3.5 rounded-xl flex items-center justify-center gap-2 focus-ring shadow-soft transition-all text-sm"
-            >
-              <Camera size={18} /> Open Camera Scanner
-            </button>
-          ) : (
-            <button
-              onClick={stopScanner}
-              className="w-full mt-4 bg-clay hover:bg-red-700 text-white font-semibold py-3.5 rounded-xl flex items-center justify-center gap-2 focus-ring shadow-soft transition-all text-sm"
-            >
-              <X size={18} /> Stop Camera
-            </button>
-          )}
-
-          {success && (
-            <div className="mt-4 p-3 rounded-xl bg-leaf-light/10 text-leaf-dark dark:text-leaf border border-leaf/20 text-sm flex items-center gap-2">
-              <CheckCircle2 size={16} className="shrink-0" />
-              <span>{success}</span>
+        {/* ── TAB 2: LIVE BARCODE CAMERA ─────────────────────────────────────── */}
+        {activeTab === 'barcode' && (
+          <div className="space-y-4">
+            <div className="glass-panel p-4 flex items-center gap-3.5 border border-moss-100/70 dark:border-white/10 shadow-soft">
+              <div className="h-11 w-11 rounded-xl bg-moss-700 text-white flex items-center justify-center shrink-0 shadow-sm">
+                <ScanBarcode size={22} />
+              </div>
+              <div>
+                <h2 className="font-display text-base font-semibold text-ink dark:text-white">
+                  Barcode Scanner
+                </h2>
+                <p className="text-xs text-ink/50 dark:text-white/40">
+                  Point camera at product barcode (EAN-13, EAN-8, UPC-A, UPC-E)
+                </p>
+              </div>
             </div>
-          )}
 
-          {error && (
-            <div className="mt-4 p-3.5 rounded-xl bg-clay/10 text-clay text-sm border border-clay/20 flex items-start gap-2.5">
-              <AlertCircle size={17} className="shrink-0 mt-0.5" />
-              <span>{error}</span>
+            {/* Camera Viewport Card */}
+            <div className="glass-panel p-5 border border-moss-100/70 dark:border-white/10 shadow-soft">
+              <div className="flex items-center justify-between mb-3.5">
+                <div className="flex items-center gap-2">
+                  <Camera size={18} className="text-moss-700 dark:text-leaf-light" />
+                  <h3 className="font-semibold text-ink dark:text-white text-sm">
+                    Live Barcode Camera
+                  </h3>
+                </div>
+                {scanning && (
+                  <span className="flex items-center gap-1.5 text-xs font-semibold text-leaf px-2.5 py-0.5 rounded-full bg-leaf/10 animate-pulse">
+                    <span className="h-2 w-2 rounded-full bg-leaf" /> Scanning Live
+                  </span>
+                )}
+              </div>
+
+              {/* Camera display */}
+              <div
+                id="barcode-reader"
+                className="w-full overflow-hidden rounded-2xl bg-black min-h-[260px] border border-moss-100/40 dark:border-white/5"
+              />
+
+              {!scanning ? (
+                <button
+                  onClick={startScanner}
+                  className="w-full mt-4 bg-moss-700 hover:bg-moss-600 text-white font-semibold py-3.5 rounded-xl flex items-center justify-center gap-2 focus-ring shadow-soft transition-all text-sm"
+                >
+                  <Camera size={18} /> Open Camera Scanner
+                </button>
+              ) : (
+                <button
+                  onClick={stopScanner}
+                  className="w-full mt-4 bg-clay hover:bg-red-700 text-white font-semibold py-3.5 rounded-xl flex items-center justify-center gap-2 focus-ring shadow-soft transition-all text-sm"
+                >
+                  <X size={18} /> Stop Camera
+                </button>
+              )}
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
-        {/* Manual Barcode Input Card */}
-        <div className="glass-panel p-5 mt-4 border border-moss-100/70 dark:border-white/10 shadow-soft">
-          <div className="flex items-center gap-2 mb-2">
-            <Keyboard size={18} className="text-moss-700 dark:text-leaf-light" />
-            <h3 className="font-semibold text-ink dark:text-white text-sm">
-              Enter Barcode Number Manually
-            </h3>
-          </div>
-          <p className="text-xs text-ink/40 dark:text-white/40 mb-3">
-            If your camera is unavailable, enter the barcode digits printed on the package.
-          </p>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={manualBarcode}
-              onChange={(e) => setManualBarcode(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') handleManualSearch() }}
-              placeholder="e.g. 8903023006559 or 8901058851126"
-              className="input-base flex-1 text-sm font-mono"
-            />
-            <button
-              onClick={handleManualSearch}
-              className="bg-moss-700 hover:bg-moss-600 text-white px-5 rounded-xl flex items-center gap-2 transition-colors focus-ring font-semibold text-sm"
-            >
-              <Search size={16} /> Search
-            </button>
-          </div>
-        </div>
+        {/* ── TAB 3: MANUAL BARCODE ENTRY ────────────────────────────────────── */}
+        {activeTab === 'manual' && (
+          <div className="space-y-4">
+            <div className="glass-panel p-5 border border-moss-100/70 dark:border-white/10 shadow-soft">
+              <div className="flex items-center gap-2 mb-2">
+                <Keyboard size={18} className="text-moss-700 dark:text-leaf-light" />
+                <h3 className="font-semibold text-ink dark:text-white text-sm">
+                  Enter Barcode Number Manually
+                </h3>
+              </div>
+              <p className="text-xs text-ink/40 dark:text-white/40 mb-3">
+                Type the barcode digits printed on the package to look it up in MongoDB.
+              </p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={manualBarcode}
+                  onChange={(e) => setManualBarcode(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleManualSearch() }}
+                  placeholder="e.g. 8903023006559 or 8901058851126"
+                  className="input-base flex-1 text-sm font-mono"
+                  autoFocus
+                />
+                <button
+                  onClick={handleManualSearch}
+                  className="btn-primary px-5 rounded-xl flex items-center gap-2 font-semibold text-sm"
+                >
+                  <Search size={16} /> Search
+                </button>
+              </div>
+            </div>
 
-        {/* Supported formats info */}
-        <div className="glass-panel p-4 mt-4 border border-moss-100/50 dark:border-white/5">
-          <div className="flex items-center gap-2 text-xs font-semibold text-ink/60 dark:text-white/60 mb-2">
-            <HelpCircle size={14} className="text-leaf" /> Supported Barcode Standards
+            {/* Supported formats info */}
+            <div className="glass-panel p-4 border border-moss-100/50 dark:border-white/5">
+              <div className="flex items-center gap-2 text-xs font-semibold text-ink/60 dark:text-white/60 mb-2">
+                <HelpCircle size={14} className="text-leaf" /> Supported Barcode Standards
+              </div>
+              <div className="flex flex-wrap gap-2 text-[11px] text-ink/50 dark:text-white/40">
+                <span className="px-2 py-0.5 rounded-lg bg-mint-tint dark:bg-white/5 font-mono">EAN-13</span>
+                <span className="px-2 py-0.5 rounded-lg bg-mint-tint dark:bg-white/5 font-mono">EAN-8</span>
+                <span className="px-2 py-0.5 rounded-lg bg-mint-tint dark:bg-white/5 font-mono">UPC-A</span>
+                <span className="px-2 py-0.5 rounded-lg bg-mint-tint dark:bg-white/5 font-mono">UPC-E</span>
+                <span className="px-2 py-0.5 rounded-lg bg-mint-tint dark:bg-white/5 font-mono">Code-128</span>
+              </div>
+            </div>
           </div>
-          <div className="flex flex-wrap gap-2 text-[11px] text-ink/50 dark:text-white/40">
-            <span className="px-2 py-0.5 rounded-lg bg-mint-tint dark:bg-white/5 font-mono">EAN-13</span>
-            <span className="px-2 py-0.5 rounded-lg bg-mint-tint dark:bg-white/5 font-mono">EAN-8</span>
-            <span className="px-2 py-0.5 rounded-lg bg-mint-tint dark:bg-white/5 font-mono">UPC-A</span>
-            <span className="px-2 py-0.5 rounded-lg bg-mint-tint dark:bg-white/5 font-mono">UPC-E</span>
-            <span className="px-2 py-0.5 rounded-lg bg-mint-tint dark:bg-white/5 font-mono">Code-128</span>
-          </div>
-        </div>
+        )}
 
       </div>
     </AppShell>
