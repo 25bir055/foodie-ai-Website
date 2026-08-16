@@ -189,8 +189,8 @@ export default function Scanner() {
 
   // ── Handle Key Save ───────────────────────────────────────────────────────
   const handleSaveApiKey = () => {
-    if (!apiKeyInput.trim() || !apiKeyInput.trim().startsWith('AIzaSy')) {
-      setError('Please enter a valid Google Gemini API Key starting with "AIzaSy...".')
+    if (!apiKeyInput.trim() || apiKeyInput.trim().length < 15) {
+      setError('Please enter a valid Google Gemini API Key from Google AI Studio.')
       return
     }
     setGeminiApiKey(apiKeyInput.trim())

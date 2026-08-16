@@ -7,7 +7,7 @@ export function getGeminiApiKey() {
   const customKey = typeof localStorage !== 'undefined' ? localStorage.getItem('foodie_gemini_key') : null
   const envKey = import.meta.env.VITE_GEMINI_API_KEY
   const key = customKey || envKey
-  return (key && key !== 'your-gemini-key' && key.trim().startsWith('AIzaSy')) ? key.trim() : null
+  return (key && key !== 'your-gemini-key' && key.trim().length > 15) ? key.trim() : null
 }
 
 export function setGeminiApiKey(key) {
