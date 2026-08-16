@@ -1,5 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 
+let cachedModelName = null
+
 /**
  * Get active Gemini AI key
  */
@@ -11,6 +13,7 @@ export function getGeminiApiKey() {
 }
 
 export function setGeminiApiKey(key) {
+  cachedModelName = null
   if (key && key.trim()) {
     localStorage.setItem('foodie_gemini_key', key.trim())
   } else {
@@ -20,12 +23,11 @@ export function setGeminiApiKey(key) {
 
 /**
  * High-speed client-side image compressor & resizer.
- * Reduces 5MB-15MB phone camera photos to ~100KB in ~30ms, boosting API speed by 10x!
+ * Reduces 5MB-15MB phone camera photos to ~120KB in ~30ms.
  */
-export function compressAndResizeImage(file, maxWidth = 1024, maxHeight = 1024, quality = 0.8) {
+export function compressAndResizeImage(file, maxWidth = 1000, maxHeight = 1000, quality = 0.8) {
   return new Promise((resolve, reject) => {
     if (typeof file === 'string') {
-      // If already a base64 string
       const base64Data = file.includes(',') ? file.split(',')[1] : file
       return resolve({ base64Data, dataUrl: file, mimeType: 'image/jpeg' })
     }
@@ -38,7 +40,6 @@ export function compressAndResizeImage(file, maxWidth = 1024, maxHeight = 1024, 
       img.onload = () => {
         let { width, height } = img
 
-        // Maintain aspect ratio while bounding within maxWidth/maxHeight
         if (width > height) {
           if (width > maxWidth) {
             height = Math.round((height * maxWidth) / width)
@@ -56,7 +57,6 @@ export function compressAndResizeImage(file, maxWidth = 1024, maxHeight = 1024, 
         canvas.height = height
         const ctx = canvas.getContext('2d', { alpha: false })
         
-        // Fast image smoothing
         ctx.imageSmoothingEnabled = true
         ctx.imageSmoothingQuality = 'medium'
         ctx.drawImage(img, 0, 0, width, height)
@@ -77,7 +77,7 @@ export function compressAndResizeImage(file, maxWidth = 1024, maxHeight = 1024, 
 }
 
 /**
- * Fast Health Score calculation (0-100)
+ * Calculate health score (0-100) from basic nutrition facts
  */
 function calculateHealthScore({ calories = 150, sugar = 5, saturatedFat = 2, sodium = 100, protein = 3, fiber = 2 }) {
   let score = 70
@@ -109,11 +109,11 @@ function calculateHealthScore({ calories = 150, sugar = 5, saturatedFat = 2, sod
 }
 
 /**
- * Clean and parse JSON from text
+ * Parse clean JSON from model response
  */
 function parseFastJson(text) {
   if (!text) return null
-  let cleaned = text.replace(/```json\s*/gi, '').replace(/```\s*$/gi, '').trim()
+  let cleaned = text.replace(/```(?:json)?\s*/gi, '').replace(/```\s*$/gi, '').trim()
   const first = cleaned.indexOf('{')
   const last = cleaned.lastIndexOf('}')
   if (first !== -1 && last !== -1 && last > first) {
@@ -123,17 +123,66 @@ function parseFastJson(text) {
 }
 
 /**
- * Super-fast direct REST call to Gemini Vision (bypasses heavy SDK overhead)
+ * Discover the active Gemini model for this user's API Key
  */
-async function fastGeminiVisionRest(apiKey, modelName, base64Data, mimeType) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`
+async function discoverWorkingGeminiModel(apiKey) {
+  if (cachedModelName) return cachedModelName
 
-  const prompt = `Extract food nutrition facts from this image. Output ONLY valid JSON:
+  try {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`)
+    if (res.ok) {
+      const data = await res.json()
+      if (Array.isArray(data.models) && data.models.length > 0) {
+        const supported = data.models
+          .filter(m => m.supportedGenerationMethods?.includes('generateContent'))
+          .map(m => m.name.replace(/^models\//, ''))
+
+        console.log('Available models for this API key from Google:', supported)
+
+        // Find flash or vision model
+        const match = supported.find(m => m.includes('flash') && !m.includes('8b')) ||
+                      supported.find(m => m.includes('flash')) ||
+                      supported.find(m => m.includes('pro')) ||
+                      supported[0]
+
+        if (match) {
+          cachedModelName = match
+          return match
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Model list discovery error:', err.message)
+  }
+
+  return 'gemini-1.5-flash'
+}
+
+/**
+ * Lightning-Fast Nutrition Photo Analyzer using Gemini Vision
+ */
+export async function analyzeNutritionImage(imageFile) {
+  const apiKey = getGeminiApiKey()
+  if (!apiKey) {
+    throw new Error(
+      'Gemini API Key is missing. Please click "Enter API Key" and paste your free key from https://aistudio.google.com/apikey.'
+    )
+  }
+
+  // 1. High-speed client-side image compression (~30ms)
+  const { base64Data, dataUrl, mimeType } = await compressAndResizeImage(imageFile, 900, 900, 0.78)
+
+  // 2. Discover live working model
+  const activeModelName = await discoverWorkingGeminiModel(apiKey)
+  console.log(`🚀 Using Gemini model: ${activeModelName}`)
+
+  const prompt = `You are a food scientist. Extract nutrition values from this image.
+Return ONLY a valid JSON object matching this schema:
 {
-  "name": "Product Name",
-  "brand": "Brand",
-  "category": "Category e.g. Snacks, Dairy, Cereal, Beverages",
-  "barcode": "Barcode if visible else empty",
+  "name": "Exact Product Name (e.g. Masala Oats, Milk, Biscuit)",
+  "brand": "Brand Name",
+  "category": "Category (e.g. Breakfast & Cereal, Dairy, Snacks & Biscuits, Beverages, Bakery)",
+  "barcode": "Barcode numbers if visible, else empty",
   "servingSize": "100g",
   "calories": 0,
   "protein": 0,
@@ -143,105 +192,65 @@ async function fastGeminiVisionRest(apiKey, modelName, base64Data, mimeType) {
   "saturatedFat": 0,
   "fiber": 0,
   "sodium": 0,
-  "ingredients": ["ingredient 1"],
-  "allergens": ["Milk, Gluten, Nuts if found"],
-  "concerningIngredients": ["Additives, palm oil, MSG if found"],
+  "ingredients": ["ingredient 1", "ingredient 2"],
+  "allergens": ["Milk, Gluten, Nuts if detected"],
+  "concerningIngredients": ["Additives, palm oil if detected"],
   "nutriScore": "a",
   "healthScore": 75,
-  "insight": "Brief 1-sentence nutrition verdict."
+  "insight": "1-sentence nutritionist summary."
 }`
 
-  const payload = {
-    contents: [
-      {
-        parts: [
-          { text: prompt },
-          {
-            inline_data: {
-              mime_type: mimeType,
-              data: base64Data
-            }
-          }
-        ]
-      }
-    ],
-    generationConfig: {
-      temperature: 0.1,
-      maxOutputTokens: 600,
-      response_mime_type: 'application/json'
-    }
-  }
-
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  })
-
-  const data = await res.json()
-  if (!res.ok) {
-    throw new Error(data.error?.message || `HTTP ${res.status}`)
-  }
-
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text
-  if (!text) throw new Error('Empty response from vision model')
-  return parseFastJson(text)
-}
-
-/**
- * Lightning-Fast Nutrition Photo Analyzer
- * @param {File|Blob|string} imageFile
- * @returns {Promise<Object>}
- */
-export async function analyzeNutritionImage(imageFile) {
-  const apiKey = getGeminiApiKey()
-  if (!apiKey) {
-    throw new Error(
-      'Gemini API Key missing. Please click "Enter API Key" and paste your key from https://aistudio.google.com/apikey.'
-    )
-  }
-
-  // 1. Ultra-fast Client-side Image Resizing & Compression (~30ms)
-  const { base64Data, dataUrl, mimeType } = await compressAndResizeImage(imageFile, 900, 900, 0.78)
-
-  // 2. Models to try in order of speed
-  const fastModels = ['gemini-1.5-flash-latest', 'gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash-8b']
   let parsed = null
-  let lastErr = null
 
-  // 3. Direct Fast REST Call (usually takes ~1 to 1.8 seconds)
-  for (const model of fastModels) {
-    try {
-      parsed = await fastGeminiVisionRest(apiKey, model, base64Data, mimeType)
-      if (parsed) break
-    } catch (err) {
-      console.warn(`Fast model ${model} failed, trying next:`, err.message)
-      lastErr = err
+  // 3. Call via Official SDK
+  try {
+    const genAI = new GoogleGenerativeAI(apiKey)
+    const model = genAI.getGenerativeModel({ model: activeModelName })
+    
+    const result = await model.generateContent([
+      prompt,
+      {
+        inlineData: {
+          data: base64Data,
+          mimeType: mimeType || 'image/jpeg'
+        }
+      }
+    ])
+
+    const response = await result.response
+    const rawText = response.text()
+    console.log('Gemini extraction output:', rawText)
+    parsed = parseFastJson(rawText)
+  } catch (sdkErr) {
+    console.warn(`Primary model ${activeModelName} failed:`, sdkErr.message)
+
+    // Try fallback models if primary failed
+    const fallbackModels = ['gemini-1.5-flash', 'gemini-1.5-flash-latest', 'gemini-2.0-flash-exp', 'gemini-pro-vision']
+    for (const fbModel of fallbackModels) {
+      if (fbModel === activeModelName) continue
+      try {
+        const genAI = new GoogleGenerativeAI(apiKey)
+        const model = genAI.getGenerativeModel({ model: fbModel })
+        const result = await model.generateContent([
+          prompt,
+          { inlineData: { data: base64Data, mimeType: mimeType || 'image/jpeg' } }
+        ])
+        const response = await result.response
+        parsed = parseFastJson(response.text())
+        if (parsed) {
+          cachedModelName = fbModel
+          break
+        }
+      } catch (e) {
+        console.warn(`Fallback ${fbModel} also failed:`, e.message)
+      }
     }
   }
 
-  // 4. Fallback to SDK if REST had headers/CORS issue
-  if (!parsed) {
-    try {
-      const genAI = new GoogleGenerativeAI(apiKey)
-      const model = genAI.getGenerativeModel({
-        model: 'gemini-1.5-flash',
-        generationConfig: { maxOutputTokens: 600, responseMimeType: 'application/json' }
-      })
-      const result = await model.generateContent([
-        'Extract nutrition facts. Return ONLY JSON matching standard nutrition schema.',
-        { inlineData: { data: base64Data, mimeType } }
-      ])
-      const res = await result.response
-      parsed = parseFastJson(res.text())
-    } catch (sdkErr) {
-      console.warn('SDK fallback also failed:', sdkErr)
-      throw new Error(`AI Scan failed: ${lastErr?.message || sdkErr.message}`)
-    }
-  }
-
-  if (!parsed) {
-    throw new Error('Could not parse nutrition data from this photo. Please try a clearer picture.')
+  if (!parsed || (!parsed.name && !parsed.calories && !parsed.protein)) {
+    throw new Error(
+      'Could not extract nutrition information from this image. Please ensure the nutrition facts table is clearly focused and well-lit.'
+    )
   }
 
   const healthScore = Number(parsed.healthScore) || calculateHealthScore(parsed)
@@ -274,7 +283,7 @@ export async function analyzeNutritionImage(imageFile) {
       (Number(parsed.protein) || 0) >= 8 ? 'High Protein' : '',
       (Number(parsed.sugar) || 0) > 15 ? 'High Sugar Alert' : ''
     ].filter(Boolean),
-    insight: parsed.insight || 'Nutrition panel scanned and analyzed with Gemini Vision AI.',
+    insight: parsed.insight || 'Nutrition facts extracted and analyzed with Gemini Vision AI.',
     imageUrl: dataUrl,
     image: '🥗',
     source: 'Gemini Vision AI'
