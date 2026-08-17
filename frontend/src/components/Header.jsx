@@ -6,7 +6,12 @@ import { PRODUCTS } from '../data/mockData'
 
 export default function Header({ title }) {
   const navigate = useNavigate()
-  const { theme, toggleTheme, userName } = useApp()
+  const {
+    theme, toggleTheme, userName,
+    notifications, unreadNotifCount,
+    markNotificationAsRead, markAllNotificationsAsRead, clearNotifications
+  } = useApp()
+
   const [searchOpen, setSearchOpen] = useState(false)
   const [query, setQuery]           = useState('')
   const [showNotif, setShowNotif]   = useState(false)
@@ -20,6 +25,12 @@ export default function Header({ title }) {
     : []
 
   const goSearch = () => { navigate('/search'); setSearchOpen(false); setQuery('') }
+
+  const handleNotificationClick = (n) => {
+    markNotificationAsRead(n.id)
+    setShowNotif(false)
+    if (n.link) navigate(n.link)
+  }
 
   return (
     <header className="sticky top-0 z-30 bg-cream/90 dark:bg-[#0B1712]/90 backdrop-blur-2xl border-b border-moss-100/60 dark:border-white/5 px-4 sm:px-6 lg:px-8 py-3">
@@ -63,36 +74,81 @@ export default function Header({ title }) {
             {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
           </button>
 
-          {/* Notifications */}
+          {/* Dynamic Notifications */}
           <div className="relative">
             <button
               aria-label="Notifications"
-              onClick={() => setShowNotif((s) => !s)}
+              onClick={() => {
+                setShowNotif((s) => !s)
+              }}
               className="relative p-2.5 rounded-full hover:bg-moss-50 dark:hover:bg-white/10 text-ink/50 dark:text-white/50 transition-colors focus-ring"
             >
               <Bell size={18} />
-              <span className="absolute top-2 right-2.5 h-1.5 w-1.5 rounded-full bg-clay" />
+              {unreadNotifCount > 0 && (
+                <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-clay animate-pulse" />
+              )}
             </button>
 
             {showNotif && (
-              <div className="absolute right-0 top-12 w-72 glass-strong rounded-xl2 shadow-soft z-50 overflow-hidden">
-                <div className="px-4 py-3 border-b border-moss-100/70 dark:border-white/10 flex items-center justify-between">
-                  <p className="text-sm font-semibold text-ink dark:text-white">Notifications</p>
-                  <button onClick={() => setShowNotif(false)} className="text-ink/30 hover:text-ink/60 focus-ring"><X size={14} /></button>
-                </div>
-                {[
-                  { text: 'New scan: Crunchy Masala Oats', sub: 'Just now', dot: true },
-                  { text: 'Weekly health score is up 6 pts!', sub: '2 hours ago', dot: false },
-                  { text: 'Healthier alternative found for Cola', sub: 'Yesterday', dot: false }
-                ].map((n, i) => (
-                  <div key={i} className="flex items-start gap-3 px-4 py-3 border-b border-moss-50 dark:border-white/5 last:border-0 hover:bg-mint-tint dark:hover:bg-white/5 transition-colors cursor-pointer">
-                    <div className={`h-2 w-2 rounded-full mt-1.5 shrink-0 ${n.dot ? 'bg-leaf' : 'bg-transparent'}`} />
-                    <div>
-                      <p className="text-sm text-ink dark:text-white/85">{n.text}</p>
-                      <p className="text-[11px] text-ink/40 dark:text-white/35 mt-0.5">{n.sub}</p>
-                    </div>
+              <div className="absolute right-0 top-12 w-80 max-h-96 glass-strong rounded-xl2 shadow-glow z-50 overflow-hidden flex flex-col fade-in-up border border-moss-100 dark:border-white/10">
+                <div className="px-4 py-3 border-b border-moss-100/70 dark:border-white/10 flex items-center justify-between bg-moss-50/50 dark:bg-white/5">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold text-ink dark:text-white">Notifications</p>
+                    {unreadNotifCount > 0 && (
+                      <span className="px-2 py-0.2 rounded-full bg-clay/15 text-clay text-[10px] font-bold">
+                        {unreadNotifCount} new
+                      </span>
+                    )}
                   </div>
-                ))}
+                  <div className="flex items-center gap-2">
+                    {notifications.length > 0 && (
+                      <button
+                        onClick={markAllNotificationsAsRead}
+                        className="text-[11px] font-medium text-leaf-dark dark:text-leaf-light hover:underline"
+                      >
+                        Read all
+                      </button>
+                    )}
+                    <button onClick={() => setShowNotif(false)} className="text-ink/30 hover:text-ink/60 focus-ring">
+                      <X size={14} />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="overflow-y-auto flex-1 divide-y divide-moss-50 dark:divide-white/5">
+                  {notifications.length > 0 ? (
+                    notifications.map((n) => (
+                      <button
+                        key={n.id}
+                        onClick={() => handleNotificationClick(n)}
+                        className={`w-full flex items-start gap-3 px-4 py-3 text-left transition-colors cursor-pointer ${
+                          !n.read ? 'bg-mint-tint/60 dark:bg-white/8 font-medium' : 'hover:bg-moss-50/40 dark:hover:bg-white/5'
+                        }`}
+                      >
+                        <div className={`h-2 w-2 rounded-full mt-1.5 shrink-0 ${!n.read ? 'bg-leaf' : 'bg-transparent'}`} />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-ink dark:text-white/90 leading-snug">{n.text}</p>
+                          <p className="text-[10px] text-ink/40 dark:text-white/35 mt-1">{n.sub}</p>
+                        </div>
+                      </button>
+                    ))
+                  ) : (
+                    <div className="p-6 text-center text-xs text-ink/40 dark:text-white/40">
+                      No notifications right now.
+                    </div>
+                  )}
+                </div>
+
+                {notifications.length > 0 && (
+                  <div className="p-2 border-t border-moss-100/70 dark:border-white/10 text-center bg-moss-50/30 dark:bg-white/5">
+                    <button
+                      onClick={clearNotifications}
+                      className="text-[11px] text-ink/40 hover:text-clay dark:text-white/30 dark:hover:text-clay font-medium"
+                    >
+                      Clear all notifications
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>

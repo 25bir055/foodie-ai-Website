@@ -36,6 +36,87 @@ export function AppProvider({ children }) {
 
   const [scanHistory, setScanHistoryState] = useState(() => getStoredScanHistory(userKey))
 
+  // User-isolated dynamic notifications
+  const [notifications, setNotifications] = useState(() => {
+    try {
+      const stored = localStorage.getItem(`foodie_notifs_${userKey}`)
+      if (stored) return JSON.parse(stored)
+    } catch (e) {
+      // ignore
+    }
+    return [
+      {
+        id: 'n_feature_photo_scanner',
+        text: '📸 New Feature: AI Nutrition Label Photo Scanner is now live!',
+        sub: 'Just now',
+        read: false,
+        type: 'feature',
+        link: '/scan'
+      },
+      {
+        id: 'n_feature_auth_sync',
+        text: '🌿 System Update: Google One-Tap Login & MongoDB Cloud Sync active.',
+        sub: '2 hours ago',
+        read: false,
+        type: 'system'
+      },
+      {
+        id: 'n_tip_nutrition',
+        text: '💡 Health Tip: Keep added sugar under 25g per day for optimal metabolic health.',
+        sub: 'Yesterday',
+        read: true,
+        type: 'tip'
+      }
+    ]
+  })
+
+  // Save notifications per user
+  useEffect(() => {
+    try {
+      localStorage.setItem(`foodie_notifs_${userKey}`, JSON.stringify(notifications))
+    } catch (e) {
+      // ignore
+    }
+  }, [notifications, userKey])
+
+  const addNotification = (notif) => {
+    if (!notif || !notif.text) return
+    const newNotif = {
+      id: `n_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      text: notif.text,
+      sub: notif.sub || 'Just now',
+      read: false,
+      type: notif.type || 'info',
+      link: notif.link || null,
+      timestamp: Date.now()
+    }
+
+    setNotifications((prev) => {
+      // Avoid exact duplicate text in last 5 minutes
+      const exists = prev.find((n) => n.text === notif.text && (Date.now() - (n.timestamp || 0)) < 300000)
+      if (exists) return prev
+      return [newNotif, ...prev].slice(0, 30)
+    })
+  }
+
+  const markNotificationAsRead = (id) => {
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
+    )
+  }
+
+  const markAllNotificationsAsRead = () => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))
+  }
+
+  const clearNotifications = () => {
+    setNotifications([])
+  }
+
+  const unreadNotifCount = useMemo(() => {
+    return notifications.filter((n) => !n.read).length
+  }, [notifications])
+
   const [profile, setProfile] = useState({
     age: 27, height: 165, weight: 60,
     activityLevel: 'Moderately Active',
@@ -133,6 +214,14 @@ export function AppProvider({ children }) {
       return updated
     })
 
+    // Auto notification for new scan
+    addNotification({
+      text: `📸 New scan recorded: ${product.name}`,
+      sub: 'Just now',
+      type: 'scan',
+      link: `/product/${product.id || product.barcode}`
+    })
+
     // Record scan to backend MongoDB
     saveScanRecord({
       userId: user?.uid || user?._id || 'anonymous',
@@ -154,12 +243,24 @@ export function AppProvider({ children }) {
     const cleanId = String(id)
 
     setFavorites((prev) => {
-      const next = prev.includes(cleanId)
-        ? prev.filter((f) => f !== cleanId)
-        : [...prev, cleanId]
+      const isAdding = !prev.includes(cleanId)
+      const next = isAdding
+        ? [...prev, cleanId]
+        : prev.filter((f) => f !== cleanId)
 
       const key = user?.uid || user?._id || user?.email || 'anonymous'
       localStorage.setItem(`foodie_favorites_${key}`, JSON.stringify(next))
+
+      // Trigger notification
+      const prod = productsList.find(p => String(p.id) === cleanId || String(p.barcode) === cleanId || String(p._id) === cleanId)
+      if (isAdding) {
+        addNotification({
+          text: `❤️ Added "${prod?.name || 'Item'}" to your Favorites`,
+          sub: 'Just now',
+          type: 'favorite',
+          link: '/profile'
+        })
+      }
 
       // Sync with MongoDB backend if logged in
       if (user) {
@@ -191,6 +292,14 @@ export function AppProvider({ children }) {
 
       const key = user?.uid || user?._id || user?.email || 'anonymous'
       localStorage.setItem(`foodie_shopping_${key}`, JSON.stringify(next))
+
+      // Trigger notification
+      addNotification({
+        text: `🛒 Added "${product.name}" to Shopping List`,
+        sub: 'Just now',
+        type: 'shopping',
+        link: '/shopping-list'
+      })
 
       if (user) {
         updateUserProfile({ shoppingList: next }).catch((err) =>
@@ -245,6 +354,13 @@ export function AppProvider({ children }) {
 
   const handleSetProfile = async (newProfile) => {
     setProfile(newProfile)
+    addNotification({
+      text: '🎯 Personal health goals and profile updated!',
+      sub: 'Just now',
+      type: 'profile',
+      link: '/profile'
+    })
+
     if (user) {
       try {
         await updateUserProfile({ profile: newProfile })
@@ -287,9 +403,15 @@ export function AppProvider({ children }) {
       addScanToHistory,
       clearScanHistory,
       profile,
-      setProfile: handleSetProfile
+      setProfile: handleSetProfile,
+      notifications,
+      unreadNotifCount,
+      addNotification,
+      markNotificationAsRead,
+      markAllNotificationsAsRead,
+      clearNotifications
     }),
-    [user, authLoading, userName, theme, shoppingList, favorites, favoriteProducts, scanHistory, profile]
+    [user, authLoading, userName, theme, shoppingList, favorites, favoriteProducts, scanHistory, profile, notifications, unreadNotifCount]
   )
 
   return <AppCtx.Provider value={value}>{children}</AppCtx.Provider>
