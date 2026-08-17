@@ -36,38 +36,14 @@ export function AppProvider({ children }) {
 
   const [scanHistory, setScanHistoryState] = useState(() => getStoredScanHistory(userKey))
 
-  // User-isolated dynamic notifications
+  // User-isolated dynamic notifications (NO defaults, 100% user-scoped)
   const [notifications, setNotifications] = useState(() => {
     try {
       const stored = localStorage.getItem(`foodie_notifs_${userKey}`)
-      if (stored) return JSON.parse(stored)
+      return stored ? JSON.parse(stored) : []
     } catch (e) {
-      // ignore
+      return []
     }
-    return [
-      {
-        id: 'n_feature_photo_scanner',
-        text: '📸 New Feature: AI Nutrition Label Photo Scanner is now live!',
-        sub: 'Just now',
-        read: false,
-        type: 'feature',
-        link: '/scan'
-      },
-      {
-        id: 'n_feature_auth_sync',
-        text: '🌿 System Update: Google One-Tap Login & MongoDB Cloud Sync active.',
-        sub: '2 hours ago',
-        read: false,
-        type: 'system'
-      },
-      {
-        id: 'n_tip_nutrition',
-        text: '💡 Health Tip: Keep added sugar under 25g per day for optimal metabolic health.',
-        sub: 'Yesterday',
-        read: true,
-        type: 'tip'
-      }
-    ]
   })
 
   // Save notifications per user
@@ -170,6 +146,10 @@ export function AppProvider({ children }) {
             setFavorites(cachedFavs ? JSON.parse(cachedFavs) : [])
           }
 
+          // User-specific notifications
+          const cachedNotifs = localStorage.getItem(`foodie_notifs_${key}`)
+          setNotifications(cachedNotifs ? JSON.parse(cachedNotifs) : [])
+
           // User-specific shopping list from MongoDB or localStorage
           if (Array.isArray(currentUser.shoppingList)) {
             setShoppingList(currentUser.shoppingList)
@@ -183,6 +163,7 @@ export function AppProvider({ children }) {
           setFavorites([])
           setShoppingList([])
           setScanHistoryState([])
+          setNotifications([])
         }
       } catch (err) {
         console.warn('Auth init failed:', err)
@@ -350,6 +331,8 @@ export function AppProvider({ children }) {
     setUser(null)
     setFavorites([])
     setShoppingList([])
+    setScanHistoryState([])
+    setNotifications([])
   }
 
   const handleSetProfile = async (newProfile) => {
