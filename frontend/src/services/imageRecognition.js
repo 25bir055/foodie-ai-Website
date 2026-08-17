@@ -231,8 +231,12 @@ Output ONLY a valid JSON object matching this schema:
   }
 
   if (!parsed || (!parsed.name && !parsed.calories)) {
+    let errorMsg = lastErr?.message || 'Please ensure your API key from https://aistudio.google.com/apikey is active.'
+    if (errorMsg.includes('API_KEY_SERVICE_BLOCKED') || errorMsg.includes('403')) {
+      errorMsg = 'This API key is restricted by Firebase and blocks the Generative Language (Gemini) API. Please go to https://aistudio.google.com/apikey and click "Create API key in NEW project" to get an unrestricted Gemini API key.'
+    }
     throw new Error(
-      `Gemini Vision failed to analyze image: ${lastErr?.message || 'Please ensure your API key from https://aistudio.google.com/apikey is active.'}`
+      `Gemini Vision failed to analyze image: ${errorMsg}`
     )
   }
 
