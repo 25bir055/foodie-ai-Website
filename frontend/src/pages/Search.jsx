@@ -1,8 +1,9 @@
 import React, { useMemo, useState, useEffect } from 'react'
-import { Search as SearchIcon, SlidersHorizontal, X, Package, Loader2 } from 'lucide-react'
+import { Search as SearchIcon, SlidersHorizontal, X, Package, Loader2, Key } from 'lucide-react'
 import AppShell from '../components/AppShell.jsx'
 import ProductCard from '../components/ProductCard.jsx'
 import { fetchAllProducts, fetchSearchProducts } from '../services/api'
+import { searchUsdaFood, getUsdaApiKey, setUsdaApiKey } from '../services/usdaFoodApi'
 import { PRODUCTS } from '../data/mockData'
 
 const CATEGORIES = ['All', 'Breakfast & Cereal', 'Snacks & Biscuits', 'Beverages', 'Dairy', 'Bakery', 'Ready-to-eat']
@@ -23,23 +24,47 @@ export default function Search() {
   const [sortBy,      setSortBy]      = useState('score')
   const [apiProducts, setApiProducts] = useState([])
   const [loading,     setLoading]     = useState(true)
+  const [usdaKeyInput, setUsdaKeyInput] = useState(() => getUsdaApiKey())
+  const [showKeyModal, setShowKeyModal] = useState(false)
 
   useEffect(() => {
     let cancelled = false
     setLoading(true)
-    const fn = query.trim() ? fetchSearchProducts(query.trim()) : fetchAllProducts()
-    fn.then((data) => {
-      if (!cancelled) {
-        // If Firestore is empty (not seeded yet), fallback to PRODUCTS mockData
-        setApiProducts(data && data.length ? data : PRODUCTS)
-        setLoading(false)
+    const cleanQ = query.trim()
+
+    async function executeSearch() {
+      try {
+        let dbResults = []
+        if (cleanQ) {
+          dbResults = await fetchSearchProducts(cleanQ)
+        } else {
+          dbResults = await fetchAllProducts()
+        }
+
+        // Live search USDA FoodData Central database if query exists
+        let usdaResults = []
+        if (cleanQ.length >= 2) {
+          usdaResults = await searchUsdaFood(cleanQ)
+        }
+
+        if (!cancelled) {
+          const baseList = (dbResults && dbResults.length > 0) ? dbResults : PRODUCTS
+          // Merge USDA results avoiding duplicate barcodes
+          const existingBarcodes = new Set(baseList.map(p => String(p.barcode || p.id)))
+          const filteredUsda = usdaResults.filter(u => !existingBarcodes.has(String(u.barcode)))
+
+          setApiProducts([...baseList, ...filteredUsda])
+          setLoading(false)
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setApiProducts(PRODUCTS)
+          setLoading(false)
+        }
       }
-    }).catch(() => {
-      if (!cancelled) {
-        setApiProducts(PRODUCTS)
-        setLoading(false)
-      }
-    })
+    }
+
+    executeSearch()
     return () => { cancelled = true }
   }, [query])
 
@@ -85,6 +110,14 @@ export default function Search() {
           )}
         </div>
         <button
+          onClick={() => setShowKeyModal(true)}
+          className="px-3.5 rounded-xl border border-moss-100 dark:border-white/10 text-ink/70 dark:text-white/70 hover:bg-mint-tint dark:hover:bg-white/5 flex items-center gap-1.5 text-xs font-semibold focus-ring transition-all"
+        >
+          <Key size={15} className="text-leaf-dark dark:text-leaf-light" />
+          <span className="hidden sm:inline">USDA Key</span>
+        </button>
+
+        <button
           onClick={() => setShowFilters((s) => !s)}
           className={`relative px-4 rounded-xl border flex items-center gap-2 text-sm font-semibold focus-ring transition-all ${
             showFilters ? 'bg-moss-700 text-white border-moss-700' : 'border-moss-100 dark:border-white/10 text-ink/60 dark:text-white/50 hover:bg-mint-tint dark:hover:bg-white/5'
@@ -99,6 +132,50 @@ export default function Search() {
           )}
         </button>
       </div>
+
+      {/* USDA API Key Modal */}
+      {showKeyModal && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-cream dark:bg-[#0E1A14] border border-moss-100 dark:border-white/10 rounded-2xl p-6 max-w-md w-full shadow-glow fade-in-up">
+            <div className="flex items-center justify-between mb-4 border-b border-moss-100 dark:border-white/10 pb-3">
+              <div className="flex items-center gap-2">
+                <Key className="text-leaf" size={20} />
+                <h3 className="font-display font-semibold text-lg text-ink dark:text-white">USDA API Key Setup</h3>
+              </div>
+              <button onClick={() => setShowKeyModal(false)} className="text-ink/30 hover:text-ink/60">
+                <X size={18} />
+              </button>
+            </div>
+            <p className="text-xs text-ink/70 dark:text-white/70 mb-4 leading-relaxed">
+              Paste your free USDA FoodData Central API key below to unlock live USDA nutrition database lookups:
+            </p>
+            <input
+              type="text"
+              value={usdaKeyInput}
+              onChange={(e) => setUsdaKeyInput(e.target.value)}
+              placeholder="Paste your USDA API key here…"
+              className="input-base text-xs font-mono mb-4 w-full"
+            />
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setShowKeyModal(false)}
+                className="btn-secondary text-xs px-4 py-2"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setUsdaApiKey(usdaKeyInput)
+                  setShowKeyModal(false)
+                }}
+                className="btn-primary text-xs px-4 py-2"
+              >
+                Save Key
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Filters panel */}
       {showFilters && (
