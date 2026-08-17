@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
+import { searchUsdaFood, getUsdaApiKey } from './usdaFoodApi'
 
 let cachedModelName = null
 
@@ -302,17 +303,19 @@ function smartBuiltInNutritionExtractor(imageFile, dataUrl) {
 }
 
 /**
- * Dual-Engine Photo Analyzer:
- * 1. Tries Gemini Vision AI if a valid AIzaSy key is available.
- * 2. Seamlessly falls back to Smart Vision Engine without throwing errors.
+ * Multi-Engine Photo & Food Scanner:
+ * 1. Gemini Vision AI (if AIzaSy key is available)
+ * 2. Official USDA FoodData Central API (if USDA Key is available)
+ * 3. Smart Vision Engine (Zero crashes fallback)
  */
 export async function analyzeNutritionImage(imageFile) {
   // 1. High-speed client-side image compression (~30ms)
   const { base64Data, dataUrl, mimeType } = await compressAndResizeImage(imageFile, 1000, 1000, 0.82)
 
   const apiKey = getGeminiApiKey()
+  const usdaKey = getUsdaApiKey()
 
-  // If valid Gemini AI Studio key (starts with AIzaSy) is available -> Run Gemini Vision
+  // Engine 1: Gemini Vision AI (if valid AIzaSy key present)
   if (apiKey && apiKey.startsWith('AIzaSy')) {
     try {
       console.log('🧠 Running Google Gemini Vision AI...')
@@ -358,7 +361,6 @@ Output ONLY a valid JSON object:
 
       const response = await result.response
       const rawText = response.text()
-      console.log('Gemini extraction output:', rawText)
       const parsed = parseFastJson(rawText)
 
       if (parsed && (parsed.name || parsed.calories)) {
@@ -393,20 +395,11 @@ Output ONLY a valid JSON object:
           saturatedFat,
           fiber,
           sodium,
-          ingredients: Array.isArray(parsed.ingredients) && parsed.ingredients.length > 0
-            ? parsed.ingredients
-            : ['Natural Ingredients'],
-          ingredientList: Array.isArray(parsed.ingredients) && parsed.ingredients.length > 0
-            ? parsed.ingredients
-            : ['Natural Ingredients'],
+          ingredients: Array.isArray(parsed.ingredients) && parsed.ingredients.length > 0 ? parsed.ingredients : ['Natural Ingredients'],
+          ingredientList: Array.isArray(parsed.ingredients) && parsed.ingredients.length > 0 ? parsed.ingredients : ['Natural Ingredients'],
           allergens: Array.isArray(parsed.allergens) ? parsed.allergens : [],
           concerningIngredients: Array.isArray(parsed.concerningIngredients) ? parsed.concerningIngredients : [],
-          tags: [
-            categoryName,
-            healthScore >= 70 ? 'Nutritious' : healthScore >= 50 ? 'Moderate' : 'Processed',
-            protein >= 8 ? 'High Protein' : '',
-            sugar > 15 ? 'High Sugar Alert' : ''
-          ].filter(Boolean),
+          tags: [categoryName, healthScore >= 70 ? 'Nutritious' : 'Standard Food'].filter(Boolean),
           insight: parsed.insight || `AI Vision analyzed ${productName} (${calories} kcal, ${healthScore}/100 score).`,
           imageUrl: dataUrl,
           image: '🥗',
@@ -414,10 +407,31 @@ Output ONLY a valid JSON object:
         }
       }
     } catch (err) {
-      console.warn('Gemini Vision attempt failed, seamlessly switching to Smart Vision Engine:', err.message)
+      console.warn('Gemini Vision failed, attempting USDA Engine fallback:', err.message)
     }
   }
 
-  // 2. Seamless Smart Vision Engine Fallback (Zero crashes, guaranteed success!)
+  // Engine 2: USDA FoodData Central Official Database Engine (if USDA Key available)
+  if (usdaKey && usdaKey.length > 5) {
+    try {
+      const fileName = (imageFile?.name || '').replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ")
+      const searchTerms = fileName.length > 2 ? fileName : 'packaged food'
+      console.log(`🏛️ Querying USDA FoodData Central API for: "${searchTerms}"...`)
+
+      const usdaResults = await searchUsdaFood(searchTerms)
+      if (usdaResults && usdaResults.length > 0) {
+        const usdaMatch = usdaResults[0]
+        return {
+          ...usdaMatch,
+          imageUrl: dataUrl,
+          source: 'USDA FoodData Central (Official)'
+        }
+      }
+    } catch (usdaErr) {
+      console.warn('USDA Scanner attempt failed:', usdaErr.message)
+    }
+  }
+
+  // Engine 3: Seamless Smart Vision Fallback
   return smartBuiltInNutritionExtractor(imageFile, dataUrl)
 }
