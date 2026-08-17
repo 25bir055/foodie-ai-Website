@@ -11,7 +11,7 @@ import {
 import AppShell from '../components/AppShell.jsx'
 import HealthScoreRing from '../components/HealthScoreRing.jsx'
 import { fetchProductByBarcode, createProduct } from '../services/api'
-import { analyzeNutritionImage, getGeminiApiKey, setGeminiApiKey } from '../services/imageRecognition'
+import { analyzeNutritionImage, getGeminiApiKey, setGeminiApiKey, getOpenAiApiKey, setOpenAiApiKey } from '../services/imageRecognition'
 import { useApp } from '../store.jsx'
 
 // ── Internet check helper ───────────────────────────────────────────────────
@@ -51,10 +51,12 @@ export default function Scanner() {
   const [isOnline, setIsOnline]           = useState(true)
   const [checkingNet, setCheckingNet]     = useState(false)
 
-  // Gemini API Key State
-  const [apiKeyInput, setApiKeyInput]     = useState('')
+  // API Key State (OpenAI & Gemini)
+  const [openAiKeyInput, setOpenAiKeyInput] = useState(() => getOpenAiApiKey() || '')
+  const [geminiKeyInput, setGeminiKeyInput] = useState(() => getGeminiApiKey() || '')
   const [showKeyModal, setShowKeyModal]   = useState(false)
-  const [hasValidKey, setHasValidKey]     = useState(Boolean(getGeminiApiKey()))
+  const [hasValidOpenAi, setHasValidOpenAi] = useState(Boolean(getOpenAiApiKey()))
+  const [hasValidGemini, setHasValidGemini] = useState(Boolean(getGeminiApiKey()))
 
   // AI Photo Scanner State
   const fileInputRef = useRef(null)
@@ -188,17 +190,28 @@ export default function Scanner() {
   }
 
   // ── Handle Key Save ───────────────────────────────────────────────────────
-  const handleSaveApiKey = () => {
-    if (!apiKeyInput.trim() || apiKeyInput.trim().length < 15) {
-      setError('Please enter a valid Google Gemini API Key from Google AI Studio.')
-      return
+  const handleSaveOpenAiKey = () => {
+    if (openAiKeyInput.trim().startsWith('sk-')) {
+      setOpenAiApiKey(openAiKeyInput.trim())
+      setHasValidOpenAi(true)
+      setShowKeyModal(false)
+      setSuccess('✅ OpenAI GPT-4o-mini Vision Key saved successfully!')
+      setError('')
+    } else {
+      setError('OpenAI API Keys start with "sk-". Please paste your key from platform.openai.com/api-keys.')
     }
-    setGeminiApiKey(apiKeyInput.trim())
-    setHasValidKey(true)
-    setShowKeyModal(false)
-    setApiKeyInput('')
-    setSuccess('✅ Gemini API Key saved successfully!')
-    setError('')
+  }
+
+  const handleSaveGeminiKey = () => {
+    if (geminiKeyInput.trim().startsWith('AIzaSy')) {
+      setGeminiApiKey(geminiKeyInput.trim())
+      setHasValidGemini(true)
+      setShowKeyModal(false)
+      setSuccess('✅ Google Gemini API Key saved successfully!')
+      setError('')
+    } else {
+      setError('Google Gemini keys start with "AIzaSy". Please enter a key from aistudio.google.com.')
+    }
   }
 
   // ── AI Nutrition Label Image Handler ──────────────────────────────────────
@@ -762,15 +775,15 @@ export default function Scanner() {
           </div>
         )}
 
-        {/* ── Gemini Key Setup Modal ─────────────────────────────────────────── */}
+        {/* ── Vision AI Key Setup Modal ─────────────────────────────────────────── */}
         {showKeyModal && (
           <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
             <div className="glass-panel max-w-md w-full p-6 rounded-2xl shadow-glow border border-moss-100 dark:border-white/10 fade-in-up">
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center justify-between mb-4 border-b border-moss-100 dark:border-white/10 pb-3">
                 <div className="flex items-center gap-2">
-                  <Key size={20} className="text-moss-700 dark:text-leaf-light" />
+                  <Sparkles size={20} className="text-leaf animate-pulse" />
                   <h3 className="font-display font-semibold text-base text-ink dark:text-white">
-                    Google Gemini API Key
+                    Vision AI Key Setup
                   </h3>
                 </div>
                 <button
@@ -781,43 +794,77 @@ export default function Scanner() {
                 </button>
               </div>
 
-              <p className="text-xs text-ink/60 dark:text-white/50 leading-relaxed mb-4">
-                To accurately extract nutrition numbers and ingredients directly from photos, paste your Google Gemini API Key below. (Keys start with <code>AIzaSy...</code>).
-              </p>
-
-              <div className="space-y-3">
-                <input
-                  type="password"
-                  value={apiKeyInput}
-                  onChange={(e) => setApiKeyInput(e.target.value)}
-                  placeholder="AIzaSy..."
-                  className="input-base text-sm font-mono w-full"
-                />
-
-                <div className="flex items-center justify-between text-[11px] text-ink/50 dark:text-white/40">
-                  <span>Don't have a key?</span>
-                  <a
-                    href="https://aistudio.google.com/apikey"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-moss-700 dark:text-leaf-light font-semibold hover:underline flex items-center gap-1"
-                  >
-                    Get Free API Key from Google <ExternalLink size={11} />
-                  </a>
+              <div className="space-y-5">
+                {/* 1. OpenAI GPT-4o-mini Vision (Primary) */}
+                <div className="p-3.5 rounded-xl bg-leaf-light/10 border border-leaf/20">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <p className="text-xs font-bold text-leaf-dark dark:text-leaf-light flex items-center gap-1.5">
+                      <Sparkles size={14} /> OpenAI GPT-4o-mini (Recommended)
+                    </p>
+                    <a
+                      href="https://platform.openai.com/api-keys"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[10px] text-leaf-dark dark:text-leaf hover:underline flex items-center gap-0.5"
+                    >
+                      Get Key <ExternalLink size={10} />
+                    </a>
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      type="password"
+                      value={openAiKeyInput}
+                      onChange={(e) => setOpenAiKeyInput(e.target.value)}
+                      placeholder="sk-proj-..."
+                      className="input-base text-xs font-mono flex-1"
+                    />
+                    <button
+                      onClick={handleSaveOpenAiKey}
+                      className="btn-primary text-xs px-3.5 py-1.5 rounded-xl font-semibold"
+                    >
+                      Save
+                    </button>
+                  </div>
                 </div>
 
-                <div className="flex gap-2 pt-2">
-                  <button
-                    onClick={handleSaveApiKey}
-                    className="btn-primary flex-1 py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5"
-                  >
-                    <Save size={14} /> Save API Key
-                  </button>
+                {/* 2. Google Gemini Vision */}
+                <div className="p-3.5 rounded-xl bg-moss-50 dark:bg-white/5 border border-moss-100 dark:border-white/10">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <p className="text-xs font-bold text-ink dark:text-white flex items-center gap-1.5">
+                      <Key size={14} className="text-moss-700 dark:text-leaf-light" /> Google Gemini Vision
+                    </p>
+                    <a
+                      href="https://aistudio.google.com/apikey"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[10px] text-moss-700 dark:text-leaf-light hover:underline flex items-center gap-0.5"
+                    >
+                      Get Key <ExternalLink size={10} />
+                    </a>
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      type="password"
+                      value={geminiKeyInput}
+                      onChange={(e) => setGeminiKeyInput(e.target.value)}
+                      placeholder="AIzaSy..."
+                      className="input-base text-xs font-mono flex-1"
+                    />
+                    <button
+                      onClick={handleSaveGeminiKey}
+                      className="btn-secondary text-xs px-3.5 py-1.5 rounded-xl font-semibold"
+                    >
+                      Save
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex justify-end pt-1">
                   <button
                     onClick={() => setShowKeyModal(false)}
-                    className="btn-secondary py-2.5 px-4 rounded-xl text-xs font-semibold"
+                    className="btn-secondary text-xs px-4 py-2 rounded-xl"
                   >
-                    Cancel
+                    Close
                   </button>
                 </div>
               </div>

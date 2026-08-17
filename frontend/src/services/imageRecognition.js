@@ -4,6 +4,24 @@ import { searchUsdaFood, getUsdaApiKey } from './usdaFoodApi'
 let cachedModelName = null
 
 /**
+ * Get active OpenAI API key (starts with sk-)
+ */
+export function getOpenAiApiKey() {
+  const customKey = typeof localStorage !== 'undefined' ? localStorage.getItem('foodie_openai_key') : null
+  const envKey = import.meta.env.VITE_OPENAI_API_KEY
+  const key = (customKey || envKey || '').trim()
+  return (key && key.startsWith('sk-')) ? key : null
+}
+
+export function setOpenAiApiKey(key) {
+  if (key && key.trim()) {
+    localStorage.setItem('foodie_openai_key', key.trim())
+  } else {
+    localStorage.removeItem('foodie_openai_key')
+  }
+}
+
+/**
  * Get active Gemini AI key
  */
 export function getGeminiApiKey() {
@@ -137,8 +155,121 @@ function parseFastJson(text) {
   try {
     return JSON.parse(cleaned)
   } catch (e) {
-    console.warn('JSON direct parse error, attempting regex extraction:', e.message)
+    console.warn('JSON direct parse error:', e.message)
     return null
+  }
+}
+
+/**
+ * OpenAI GPT-4o-mini Vision Analyzer Engine
+ */
+async function analyzeWithOpenAI(openAiKey, dataUrl) {
+  console.log('🤖 Calling OpenAI GPT-4o-mini Vision AI...')
+
+  const promptText = `You are a food scientist and nutritionist for Foodie AI.
+Analyze this food image:
+- If it shows a Nutrition Facts Table or Ingredients list, extract the EXACT values printed on it.
+- If it shows the front of a food package (e.g. Lays, Maggi, Oreo, Britannia, Cadbury, Oats, Milk), identify the exact product and brand, and provide its standard nutritional profile per 100g.
+- If it shows a fruit or dish, identify it and provide standard nutritional values.
+
+Output ONLY a JSON object matching this schema:
+{
+  "name": "Exact Product Name",
+  "brand": "Brand Name",
+  "category": "Category e.g. Breakfast & Cereal, Dairy, Snacks & Biscuits, Beverages",
+  "barcode": "Barcode if visible else empty",
+  "servingSize": "100g",
+  "calories": 0,
+  "protein": 0,
+  "carbohydrates": 0,
+  "sugar": 0,
+  "fat": 0,
+  "saturatedFat": 0,
+  "fiber": 0,
+  "sodium": 0,
+  "ingredients": ["ingredient 1", "ingredient 2"],
+  "allergens": ["Milk, Wheat, Peanuts if detected"],
+  "concerningIngredients": ["Additives, palm oil if detected"],
+  "nutriScore": "a",
+  "healthScore": 75,
+  "insight": "1-sentence nutritionist summary verdict."
+}`
+
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${openAiKey}`
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o-mini',
+      response_format: { type: 'json_object' },
+      max_tokens: 800,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: promptText },
+            { type: 'image_url', image_url: { url: dataUrl } }
+          ]
+        }
+      ]
+    })
+  })
+
+  if (!response.ok) {
+    const errData = await response.json().catch(() => ({}))
+    throw new Error(errData?.error?.message || `OpenAI API returned status ${response.status}`)
+  }
+
+  const data = await response.json()
+  const content = data.choices?.[0]?.message?.content
+  const parsed = parseFastJson(content)
+
+  if (!parsed || (!parsed.name && !parsed.calories)) {
+    throw new Error('Could not parse nutrition data from OpenAI Vision response.')
+  }
+
+  const productName = parsed.name || 'Scanned Food Product'
+  const brandName = parsed.brand || 'Foodie AI Scanned'
+  const categoryName = parsed.category || 'Food & Grocery'
+  const calories = parseCleanNumber(parsed.calories, 180)
+  const protein = parseCleanNumber(parsed.protein, 4.0)
+  const carbs = parseCleanNumber(parsed.carbohydrates || parsed.carbs, 25.0)
+  const sugar = parseCleanNumber(parsed.sugar, 4.0)
+  const fat = parseCleanNumber(parsed.fat, 5.0)
+  const saturatedFat = parseCleanNumber(parsed.saturatedFat, 1.5)
+  const fiber = parseCleanNumber(parsed.fiber, 2.5)
+  const sodium = parseCleanNumber(parsed.sodium, 120)
+  const healthScore = Number(parsed.healthScore) || calculateHealthScore({ calories, sugar, saturatedFat, sodium, protein, fiber })
+  const barcode = String(parsed.barcode || `ai_${Date.now()}`).trim()
+
+  return {
+    id: `p_${barcode}`,
+    barcode,
+    name: productName,
+    brand: brandName,
+    category: categoryName,
+    price: parsed.price || 65,
+    healthScore,
+    nutriScore: parsed.nutriScore || (healthScore >= 80 ? 'a' : healthScore >= 60 ? 'b' : healthScore >= 45 ? 'c' : 'd'),
+    calories,
+    protein,
+    carbs,
+    sugar,
+    fat,
+    saturatedFat,
+    fiber,
+    sodium,
+    ingredients: Array.isArray(parsed.ingredients) && parsed.ingredients.length > 0 ? parsed.ingredients : ['Natural Ingredients'],
+    ingredientList: Array.isArray(parsed.ingredients) && parsed.ingredients.length > 0 ? parsed.ingredients : ['Natural Ingredients'],
+    allergens: Array.isArray(parsed.allergens) ? parsed.allergens : [],
+    concerningIngredients: Array.isArray(parsed.concerningIngredients) ? parsed.concerningIngredients : [],
+    tags: [categoryName, healthScore >= 70 ? 'Nutritious' : 'Standard Food'].filter(Boolean),
+    insight: parsed.insight || `OpenAI GPT-4o-mini Vision analyzed ${productName} (${calories} kcal, ${healthScore}/100 score).`,
+    imageUrl: dataUrl,
+    image: '🥗',
+    source: 'OpenAI GPT-4o-mini Vision'
   }
 }
 
@@ -156,16 +287,11 @@ function computeVisualHash(str) {
   return Math.abs(hash)
 }
 
-/**
- * Dynamic Multi-Profile Smart Vision Engine
- * Uses image visual signature to generate unique, food-specific nutrition facts for EVERY upload!
- */
 function smartBuiltInNutritionExtractor(imageFile, dataUrl) {
   const fileName = (imageFile?.name || '').toLowerCase()
   const visualHash = computeVisualHash(dataUrl)
   const barcode = `scan_${Date.now()}`
 
-  // Profiles array for visual hash routing
   const PROFILES = [
     {
       name: 'Whole Wheat Digestive Biscuits',
@@ -265,7 +391,6 @@ function smartBuiltInNutritionExtractor(imageFile, dataUrl) {
     }
   ]
 
-  // Filename based override if specific keywords detected
   if (fileName.includes('biscuit') || fileName.includes('oreo')) return buildProductCard(PROFILES[0], barcode, dataUrl)
   if (fileName.includes('oat') || fileName.includes('cereal')) return buildProductCard(PROFILES[1], barcode, dataUrl)
   if (fileName.includes('chip') || fileName.includes('lays')) return buildProductCard(PROFILES[2], barcode, dataUrl)
@@ -275,11 +400,8 @@ function smartBuiltInNutritionExtractor(imageFile, dataUrl) {
   if (fileName.includes('nut') || fileName.includes('almond')) return buildProductCard(PROFILES[6], barcode, dataUrl)
   if (fileName.includes('milk') || fileName.includes('curd')) return buildProductCard(PROFILES[7], barcode, dataUrl)
 
-  // Otherwise route dynamically via Visual Hash
   const profileIndex = visualHash % PROFILES.length
-  const selectedProfile = PROFILES[profileIndex]
-
-  return buildProductCard(selectedProfile, barcode, dataUrl)
+  return buildProductCard(PROFILES[profileIndex], barcode, dataUrl)
 }
 
 function buildProductCard(p, barcode, dataUrl) {
@@ -323,69 +445,53 @@ function buildProductCard(p, barcode, dataUrl) {
 
 /**
  * Multi-Engine Photo & Food Scanner:
- * 1. Gemini Vision AI (if AIzaSy key is available)
- * 2. Official USDA FoodData Central API (if USDA Key is available)
- * 3. Smart Vision Engine (Dynamic visual hashing fallback)
+ * 1. OpenAI GPT-4o-mini Vision AI (if sk- key is available) -> TOP PRIORITY
+ * 2. Google Gemini Vision AI (if AIzaSy key is available)
+ * 3. Official USDA FoodData Central API (if USDA Key is available)
+ * 4. Smart Vision Engine (Dynamic visual hashing fallback)
  */
 export async function analyzeNutritionImage(imageFile) {
-  // 1. High-speed client-side image compression (~30ms)
   const { base64Data, dataUrl, mimeType } = await compressAndResizeImage(imageFile, 1000, 1000, 0.82)
 
-  const apiKey = getGeminiApiKey()
+  const openAiKey = getOpenAiApiKey()
+  const geminiKey = getGeminiApiKey()
   const usdaKey = getUsdaApiKey()
 
-  // Engine 1: Gemini Vision AI (if valid AIzaSy key present)
-  if (apiKey && apiKey.startsWith('AIzaSy')) {
+  // Engine 1: OpenAI GPT-4o-mini Vision AI (Top Priority if sk- key is present)
+  if (openAiKey) {
+    try {
+      return await analyzeWithOpenAI(openAiKey, dataUrl)
+    } catch (err) {
+      console.warn('OpenAI GPT-4o-mini Vision failed, attempting next engine:', err.message)
+    }
+  }
+
+  // Engine 2: Gemini Vision AI (if valid AIzaSy key present)
+  if (geminiKey) {
     try {
       console.log('🧠 Running Google Gemini Vision AI...')
       const prompt = `You are a food scientist and nutritionist for Foodie AI.
-Analyze this food image:
-- If it shows a Nutrition Facts Table or Ingredients list, extract the EXACT values printed on it.
-- If it shows the front of a food package (e.g. Lays, Maggi, Oreo, Britannia, Cadbury, Oats, Milk), identify the exact product and brand, and provide its standard nutritional profile per 100g.
-- If it shows a fruit or dish, identify it and provide standard nutritional values.
-
-Output ONLY a valid JSON object:
+Analyze this food image and output ONLY a valid JSON object matching this schema:
 {
   "name": "Product Name",
   "brand": "Brand Name",
-  "category": "Category e.g. Breakfast & Cereal, Dairy, Snacks & Biscuits, Beverages",
+  "category": "Category",
   "barcode": "Barcode if visible else empty",
-  "servingSize": "100g",
-  "calories": 0,
-  "protein": 0,
-  "carbohydrates": 0,
-  "sugar": 0,
-  "fat": 0,
-  "saturatedFat": 0,
-  "fiber": 0,
-  "sodium": 0,
+  "calories": 0, "protein": 0, "carbohydrates": 0, "sugar": 0, "fat": 0, "saturatedFat": 0, "fiber": 0, "sodium": 0,
   "ingredients": ["ingredient 1", "ingredient 2"],
   "allergens": ["Milk, Wheat, Peanuts if detected"],
-  "concerningIngredients": ["Additives, palm oil if detected"],
-  "nutriScore": "a",
+  "concerningIngredients": ["Additives if detected"],
   "healthScore": 75,
   "insight": "1-sentence nutritionist summary."
 }`
 
-      const genAI = new GoogleGenerativeAI(apiKey)
-      const model = genAI.getGenerativeModel({
-        model: 'gemini-1.5-flash',
-        generationConfig: { maxOutputTokens: 800 }
-      })
-
-      const result = await model.generateContent([
-        prompt,
-        { inlineData: { data: base64Data, mimeType: mimeType || 'image/jpeg' } }
-      ])
-
+      const genAI = new GoogleGenerativeAI(geminiKey)
+      const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' })
+      const result = await model.generateContent([prompt, { inlineData: { data: base64Data, mimeType: mimeType || 'image/jpeg' } }])
       const response = await result.response
-      const rawText = response.text()
-      const parsed = parseFastJson(rawText)
+      const parsed = parseFastJson(response.text())
 
       if (parsed && (parsed.name || parsed.calories)) {
-        const productName = parsed.name || 'Scanned Food Item'
-        const brandName = parsed.brand || 'Foodie Scanned'
-        const categoryName = parsed.category || 'Food & Grocery'
         const calories = parseCleanNumber(parsed.calories, 180)
         const protein = parseCleanNumber(parsed.protein, 4.0)
         const carbs = parseCleanNumber(parsed.carbohydrates || parsed.carbs, 25.0)
@@ -395,53 +501,42 @@ Output ONLY a valid JSON object:
         const fiber = parseCleanNumber(parsed.fiber, 2.5)
         const sodium = parseCleanNumber(parsed.sodium, 120)
         const healthScore = Number(parsed.healthScore) || calculateHealthScore({ calories, sugar, saturatedFat, sodium, protein, fiber })
-        const barcode = String(parsed.barcode || `ai_${Date.now()}`).trim()
 
         return {
-          id: `p_${barcode}`,
-          barcode,
-          name: productName,
-          brand: brandName,
-          category: categoryName,
-          price: parsed.price || 60,
+          id: `p_gemini_${Date.now()}`,
+          barcode: parsed.barcode || `ai_${Date.now()}`,
+          name: parsed.name || 'Scanned Product',
+          brand: parsed.brand || 'Foodie AI',
+          category: parsed.category || 'Food & Grocery',
+          price: 60,
           healthScore,
-          nutriScore: parsed.nutriScore || (healthScore >= 80 ? 'a' : healthScore >= 60 ? 'b' : healthScore >= 45 ? 'c' : 'd'),
-          calories,
-          protein,
-          carbs,
-          sugar,
-          fat,
-          saturatedFat,
-          fiber,
-          sodium,
-          ingredients: Array.isArray(parsed.ingredients) && parsed.ingredients.length > 0 ? parsed.ingredients : ['Natural Ingredients'],
-          ingredientList: Array.isArray(parsed.ingredients) && parsed.ingredients.length > 0 ? parsed.ingredients : ['Natural Ingredients'],
+          nutriScore: healthScore >= 80 ? 'a' : healthScore >= 60 ? 'b' : healthScore >= 45 ? 'c' : 'd',
+          calories, protein, carbs, sugar, fat, saturatedFat, fiber, sodium,
+          ingredients: Array.isArray(parsed.ingredients) ? parsed.ingredients : ['Natural Ingredients'],
+          ingredientList: Array.isArray(parsed.ingredients) ? parsed.ingredients : ['Natural Ingredients'],
           allergens: Array.isArray(parsed.allergens) ? parsed.allergens : [],
           concerningIngredients: Array.isArray(parsed.concerningIngredients) ? parsed.concerningIngredients : [],
-          tags: [categoryName, healthScore >= 70 ? 'Nutritious' : 'Standard Food'].filter(Boolean),
-          insight: parsed.insight || `AI Vision analyzed ${productName} (${calories} kcal, ${healthScore}/100 score).`,
+          tags: ['Scanned', healthScore >= 70 ? 'Nutritious' : 'Standard'],
+          insight: parsed.insight || `Gemini Vision analyzed product (${calories} kcal).`,
           imageUrl: dataUrl,
           image: '🥗',
           source: 'Gemini Vision AI'
         }
       }
     } catch (err) {
-      console.warn('Gemini Vision failed, attempting USDA Engine fallback:', err.message)
+      console.warn('Gemini Vision failed:', err.message)
     }
   }
 
-  // Engine 2: USDA FoodData Central Official Database Engine (if USDA Key available)
+  // Engine 3: USDA FoodData Central Official Database Engine
   if (usdaKey && usdaKey.length > 5) {
     try {
       const fileName = (imageFile?.name || '').replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ")
       const searchTerms = fileName.length > 2 ? fileName : 'packaged food'
-      console.log(`🏛️ Querying USDA FoodData Central API for: "${searchTerms}"...`)
-
       const usdaResults = await searchUsdaFood(searchTerms)
       if (usdaResults && usdaResults.length > 0) {
-        const usdaMatch = usdaResults[0]
         return {
-          ...usdaMatch,
+          ...usdaResults[0],
           imageUrl: dataUrl,
           source: 'USDA FoodData Central (Official)'
         }
@@ -451,6 +546,6 @@ Output ONLY a valid JSON object:
     }
   }
 
-  // Engine 3: Dynamic Visual Hashing Smart Vision Fallback
+  // Engine 4: Dynamic Visual Hashing Smart Vision Fallback
   return smartBuiltInNutritionExtractor(imageFile, dataUrl)
 }
