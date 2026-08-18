@@ -65,28 +65,38 @@ export async function signupWithEmail(email, password, displayName) {
 
 /** Login with Google Popup (Firebase) & sync with MongoDB */
 export async function loginWithGoogle() {
-  // Opens official Firebase Google account selection popup
-  const result = await signInWithPopup(auth, googleProvider)
-  const firebaseUser = result.user
+  try {
+    // Opens official Firebase Google account selection popup
+    const result = await signInWithPopup(auth, googleProvider)
+    const firebaseUser = result.user
 
-  const email = firebaseUser.email
-  const displayName = firebaseUser.displayName || email.split('@')[0]
-  const photoUrl = firebaseUser.photoURL || ''
+    const email = firebaseUser.email
+    const displayName = firebaseUser.displayName || email.split('@')[0]
+    const photoUrl = firebaseUser.photoURL || ''
 
-  // Sync / create in MongoDB backend
-  const res = await fetch(`${API_BASE_URL}/auth/google`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, displayName, photoUrl })
-  })
+    // Sync / create in MongoDB backend
+    const res = await fetch(`${API_BASE_URL}/auth/google`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, displayName, photoUrl })
+    })
 
-  const data = await res.json()
-  if (!res.ok) {
-    throw new Error(data.error || 'Google Sign-In server sync failed.')
+    const data = await res.json()
+    if (!res.ok) {
+      throw new Error(data.error || 'Google Sign-In server sync failed.')
+    }
+
+    setAuthSession(data.token, data.user)
+    return data.user
+  } catch (err) {
+    if (err.code === 'auth/unauthorized-domain') {
+      const currentHost = typeof window !== 'undefined' ? window.location.hostname : 'domain'
+      throw new Error(
+        `Google Sign-In blocked for "${currentHost}". Please add "${currentHost}" to Firebase Console -> Authentication -> Settings -> Authorized Domains.`
+      )
+    }
+    throw err
   }
-
-  setAuthSession(data.token, data.user)
-  return data.user
 }
 
 /** Fetch Current User Profile from backend */
