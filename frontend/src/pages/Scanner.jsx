@@ -449,7 +449,10 @@ export default function Scanner() {
 
             {/* Photo Capture / Upload Area */}
             {!extractedProduct && (
-              <div className="glass-panel p-6 border border-dashed border-moss-200 dark:border-white/15 text-center rounded-2xl relative overflow-hidden">
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                className="glass-panel p-6 border border-dashed border-moss-200 dark:border-white/15 text-center rounded-2xl relative overflow-hidden cursor-pointer hover:bg-mint-tint/40 dark:hover:bg-white/5 transition-colors"
+              >
                 <input
                   type="file"
                   ref={fileInputRef}
