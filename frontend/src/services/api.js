@@ -1,7 +1,15 @@
 import { PRODUCTS } from '../data/mockData'
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+export function getApiBaseUrl() {
+  const envUrl = import.meta.env.VITE_API_URL
+  if (envUrl && !envUrl.includes('localhost')) {
+    return envUrl
+  }
+  const hostname = typeof window !== 'undefined' ? window.location.hostname : 'localhost'
+  return `http://${hostname}:5000/api`
+}
+
+const API_BASE_URL = getApiBaseUrl()
 
 function normalizeProduct(product) {
   if (!product) return null

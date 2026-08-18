@@ -1,7 +1,9 @@
 import { auth, googleProvider } from '../firebase'
 import { signInWithPopup } from 'firebase/auth'
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+import { getApiBaseUrl } from './api'
+
+const API_BASE_URL = getApiBaseUrl()
 
 const TOKEN_KEY = 'foodie_auth_token'
 const USER_KEY = 'foodie_auth_user'
