@@ -257,8 +257,33 @@ export async function analyzeNutritionImage(imageFile) {
   const geminiKey = getGeminiApiKey()
   const usdaKey = getUsdaApiKey()
 
-  // Engine 2: Gemini Vision AI (if valid AIzaSy key present)
+  // Engine 2: Gemini Vision AI
   if (geminiKey) {
+    if (geminiKey === 'TEST_MODE_ACTIVATE') {
+      console.log('🧪 Running Gemini in TEST MODE...')
+      await new Promise(r => setTimeout(r, 1500))
+      return {
+        id: `p_gemini_test`,
+        barcode: `test_mock_123`,
+        name: 'Healthy Oat Crunch',
+        brand: 'Foodie Mock',
+        category: 'Snacks',
+        price: 150,
+        healthScore: 88,
+        nutriScore: 'a',
+        calories: 120, protein: 6.5, carbs: 15, sugar: 3.2, fat: 4.0, saturatedFat: 0.5, fiber: 4.5, sodium: 80,
+        ingredients: ['Rolled Oats', 'Honey', 'Almonds', 'Chia Seeds', 'Sea Salt'],
+        ingredientList: ['Rolled Oats', 'Honey', 'Almonds', 'Chia Seeds', 'Sea Salt'],
+        allergens: ['Almonds (Tree Nuts)'],
+        concerningIngredients: [],
+        tags: ['Scanned', 'Nutritious', 'High Fiber'],
+        insight: 'Excellent source of fiber and protein with low added sugars.',
+        imageUrl: dataUrl,
+        image: '🥗',
+        source: 'Gemini Vision AI (Test Mode)'
+      }
+    }
+
     try {
       console.log('🧠 Running Google Gemini Vision AI...')
       const prompt = `You are a food scientist and nutritionist for Foodie AI.
