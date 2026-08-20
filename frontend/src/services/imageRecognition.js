@@ -315,9 +315,12 @@ Analyze this food image and output ONLY a valid JSON object matching this schema
         }
       }
     } catch (err) {
-      console.warn('Gemini Vision failed:', err.message)
+      console.error('Gemini Vision API Error:', err)
+      throw new Error(`Gemini AI Error: ${err.message}. Please check if your API Key is valid.`)
     }
   }
+
+  // Engine 4: Local OCR Vision Fallback (No API Keys needed)
 
 
 
