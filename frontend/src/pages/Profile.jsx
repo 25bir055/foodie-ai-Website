@@ -21,6 +21,11 @@ const GOAL_OPTIONS = [
   'Build Muscle', 'Improve General Nutrition', 'Healthy Eating'
 ]
 
+const ALLERGY_OPTIONS = [
+  'Peanuts', 'Tree Nuts', 'Milk', 'Eggs', 'Gluten',
+  'Soy', 'Fish', 'Shellfish', 'Sesame', 'High Added Sugar', 'High Sodium'
+]
+
 function InputField({ label, value, onChange, type = 'number', suffix }) {
   return (
     <label className="block">
@@ -244,6 +249,44 @@ export default function Profile() {
                   {opt}
                 </span>
               )) : <span className="text-sm text-ink dark:text-white font-medium">None</span>}
+            </div>
+          )}
+        </div>
+
+        {/* Allergies & Intolerances */}
+        <div className="glass-panel p-5 sm:p-6 mb-6">
+          <h3 className="font-display text-base font-semibold text-clay mb-4 flex items-center gap-2">
+            ⚠️ Allergies & Intolerances
+          </h3>
+          <p className="text-xs text-ink/50 dark:text-white/40 mb-3">
+            Select items you want to avoid. The app will warn you if a scanned product contains these ingredients.
+          </p>
+          
+          {isEditing ? (
+            <div className="flex flex-wrap gap-2">
+              {ALLERGY_OPTIONS.map((opt) => (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => toggleArrayItem('allergies', opt)}
+                  className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border transition-all focus-ring ${
+                    form.allergies?.includes(opt)
+                      ? 'bg-clay/10 border-clay text-clay'
+                      : 'border-moss-100 dark:border-white/10 text-ink/50 dark:text-white/40 hover:border-clay/40'
+                  }`}
+                >
+                  {opt}
+                  {form.allergies?.includes(opt) && <Check size={11} className="ml-0.5" />}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {form.allergies?.length > 0 ? form.allergies.map(opt => (
+                <span key={opt} className="bg-clay/10 border border-clay/30 text-clay text-xs font-medium px-3 py-1.5 rounded-full flex items-center gap-1.5">
+                  <X size={12} /> {opt}
+                </span>
+              )) : <span className="text-sm text-ink dark:text-white font-medium">No allergies recorded</span>}
             </div>
           )}
         </div>

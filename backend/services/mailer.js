@@ -19,20 +19,11 @@ function getTransporter() {
       }
     })
     console.log(`📧 Nodemailer configured with ${emailUser}`)
+    return transporter
   } else {
-    // 2. Test / development mode
-    transporter = nodemailer.createTransport({
-      host: 'smtp.ethereal.email',
-      port: 587,
-      auth: {
-        user: 'ethereal.user@ethereal.email',
-        pass: 'ethereal.pass'
-      }
-    })
-    console.log('📧 Nodemailer in development fallback mode')
+    console.log('📧 Nodemailer disabled (no EMAIL_USER in .env). Welcome emails will be skipped.')
+    return null
   }
-
-  return transporter
 }
 
 /**
@@ -46,6 +37,11 @@ async function sendWelcomeEmail(toEmail, userName = 'Foodie User', loginMethod =
 
   try {
     const transport = getTransporter()
+    if (!transport) {
+      console.log(`⏩ Skipped welcome email to ${toEmail} (Email disabled)`)
+      return { success: true, message: 'Email skipped' }
+    }
+
     const sender = process.env.EMAIL_FROM || process.env.EMAIL_USER || 'Foodie AI <no-reply@foodie.ai>'
     const loginTime = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
 

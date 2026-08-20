@@ -73,13 +73,26 @@ html.dark ::-webkit-scrollbar-thumb { background: #2C4B3A; }
   .scan-sweep::after {
     content: '';
     position: absolute;
-    left: 0; right: 0;
-    height: 2px;
-    background: linear-gradient(90deg, transparent, #4CAE7A, transparent);
-    animation: sweep 2.4s ease-in-out infinite;
-    box-shadow: 0 0 12px 2px rgba(76,174,122,0.6);
+    left: -10%; right: -10%;
+    height: 3px;
+    background: #4CAE7A;
+    box-shadow: 0 0 15px 3px rgba(76,174,122,0.8), 0 0 30px 8px rgba(76,174,122,0.4);
+    animation: sweep 2s ease-in-out infinite alternate;
     z-index: 15;
+    border-radius: 50%;
   }
+  /* Scanner corner brackets animation */
+  .scanner-bracket {
+    @apply absolute w-8 h-8 border-leaf opacity-80;
+    border-width: 4px;
+    border-radius: 8px;
+    animation: pulseGlow 2s infinite;
+  }
+  .bracket-tl { top: 10px; left: 10px; border-right: 0; border-bottom: 0; }
+  .bracket-tr { top: 10px; right: 10px; border-left: 0; border-bottom: 0; }
+  .bracket-bl { bottom: 10px; left: 10px; border-right: 0; border-top: 0; }
+  .bracket-br { bottom: 10px; right: 10px; border-left: 0; border-top: 0; }
+  
   /* Ensure video preview sits below overlays but visible */
   .scan-sweep video { z-index: 0; position: absolute; inset: 0; }
   /* Center icon and messages should be above the video */
@@ -108,6 +121,28 @@ html.dark ::-webkit-scrollbar-thumb { background: #2C4B3A; }
     background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
     transform: skewX(-20deg);
     animation: shine 3.5s ease-in-out infinite;
+  }
+  @keyframes shine {
+    0% { left: -100%; }
+    20% { left: 200%; }
+    100% { left: 200%; }
+  }
+
+  /* Blob Animation */
+  .animate-blob {
+    animation: blob 7s infinite;
+  }
+  .animation-delay-2000 {
+    animation-delay: 2s;
+  }
+  .animation-delay-4000 {
+    animation-delay: 4s;
+  }
+  @keyframes blob {
+    0% { transform: translate(0px, 0px) scale(1); }
+    33% { transform: translate(30px, -50px) scale(1.1); }
+    66% { transform: translate(-20px, 20px) scale(0.9); }
+    100% { transform: translate(0px, 0px) scale(1); }
   }
 
   /* Floating animation */
@@ -143,7 +178,7 @@ html.dark ::-webkit-scrollbar-thumb { background: #2C4B3A; }
 
   /* Card hover */
   .card-hover {
-    @apply transition-all duration-300 hover:-translate-y-1 hover:shadow-glow;
+    @apply transition-all duration-300 hover:-translate-y-1.5 hover:scale-[1.02] hover:shadow-glow hover:bg-white/80 dark:hover:bg-[#1A2C21]/90 cursor-pointer;
   }
 
   /* Badge */

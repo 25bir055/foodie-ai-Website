@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { motion, AnimatePresence } from 'framer-motion'
 import { Html5Qrcode } from 'html5-qrcode'
 import {
   Camera, Keyboard, Search, Loader2, AlertCircle,
@@ -11,36 +12,93 @@ import {
 import AppShell from '../components/AppShell.jsx'
 import HealthScoreRing from '../components/HealthScoreRing.jsx'
 import { fetchProductByBarcode, createProduct } from '../services/api'
-import { analyzeNutritionImage, getGeminiApiKey, setGeminiApiKey, getOpenAiApiKey, setOpenAiApiKey } from '../services/imageRecognition'
+import { analyzeNutritionImage, getGeminiApiKey, setGeminiApiKey } from '../services/imageRecognition'
 import { useApp } from '../store.jsx'
+import confetti from 'canvas-confetti'
+import SkeletonLoader from '../components/SkeletonLoader.jsx'
+
+// ── Vera Maari Features ──────────────────────────────────────────────────────
+const speakResult = (score, name, lang = 'en-US') => {
+  if (!window.speechSynthesis) return
+  window.speechSynthesis.cancel() // Stop any current speech
+  const msg = new SpeechSynthesisUtterance()
+  msg.lang = lang
+
+  if (lang === 'ta-IN') {
+    if (score >= 80) {
+      msg.text = `இந்த ${name} உடம்புக்கு ரொம்ப நல்லது. இதோட ஹெல்த் ஸ்கோர் ${score}.`
+    } else if (score >= 50) {
+      msg.text = `இந்த ${name} பரவாயில்லை, ஆனா அளவா சாப்பிடுங்க. ஸ்கோர் ${score}.`
+    } else {
+      msg.text = `இந்த ${name} உடம்புக்கு நல்லது இல்ல. ஸ்கோர் ${score}. தயவு செஞ்சு தவிர்க்கவும்.`
+    }
+  } else if (lang === 'hi-IN') {
+    if (score >= 80) {
+      msg.text = `यह ${name} सेहत के लिए बहुत अच्छा है। इसका हेल्थ स्कोर ${score} है।`
+    } else if (score >= 50) {
+      msg.text = `यह ${name} ठीक है, लेकिन कम मात्रा में खाएं। इसका हेल्थ स्कोर ${score} है।`
+    } else {
+      msg.text = `यह ${name} सेहत के लिए हानिकारक है। इसका हेल्थ स्कोर ${score} है। इसे खाने से बचें।`
+    }
+  } else {
+    if (score >= 80) {
+      msg.text = `${name} has an excellent health score of ${score}. It is a great choice!`
+    } else if (score >= 50) {
+      msg.text = `${name} has a moderate health score of ${score}. Consume in moderation.`
+    } else {
+      msg.text = `${name} has a poor health score of ${score}. It is not recommended.`
+    }
+  }
+  msg.rate = 1.05
+  window.speechSynthesis.speak(msg)
+}
+
+const triggerHapticsAndConfetti = (score) => {
+  if (score >= 80) {
+    // Vibrate device
+    if (navigator.vibrate) navigator.vibrate([200, 100, 200])
+    
+    // Confetti blast
+    const duration = 3000
+    const end = Date.now() + duration
+    const frame = () => {
+      confetti({
+        particleCount: 5,
+        angle: 60,
+        spread: 55,
+        origin: { x: 0 },
+        colors: ['#4CAE7A', '#86D2A1']
+      })
+      confetti({
+        particleCount: 5,
+        angle: 120,
+        spread: 55,
+        origin: { x: 1 },
+        colors: ['#4CAE7A', '#86D2A1']
+      })
+      if (Date.now() < end) {
+        requestAnimationFrame(frame)
+      }
+    }
+    frame()
+  } else if (score < 40) {
+    if (navigator.vibrate) navigator.vibrate(500) // Long warning vibration
+  }
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 // ── Internet check helper ───────────────────────────────────────────────────
 async function checkInternet() {
-  if (typeof navigator !== 'undefined' && !navigator.onLine) {
-    return false
-  }
-  try {
-    const controller = new AbortController()
-    const id = setTimeout(() => controller.abort(), 4000)
-    await fetch('https://www.google.com/favicon.ico?' + Date.now(), {
-      method: 'HEAD',
-      mode: 'no-cors',
-      signal: controller.signal,
-      cache: 'no-store'
-    })
-    clearTimeout(id)
-    return true
-  } catch {
-    return typeof navigator !== 'undefined' ? navigator.onLine : true
-  }
+  return typeof navigator !== 'undefined' ? navigator.onLine : true
 }
 
 export default function Scanner() {
   const navigate = useNavigate()
-  const { addScanToHistory } = useApp()
+  const { addScanToHistory, voiceEnabled, profile } = useApp()
 
   // Active Mode: 'barcode' | 'ai_photo' | 'manual'
   const [activeTab, setActiveTab] = useState('ai_photo')
+  const [voiceLang, setVoiceLang] = useState('en-US')
 
   // Barcode Scanner State
   const scannerRef = useRef(null)
@@ -51,12 +109,10 @@ export default function Scanner() {
   const [isOnline, setIsOnline]           = useState(true)
   const [checkingNet, setCheckingNet]     = useState(false)
 
-  // API Key State (OpenAI & Gemini)
-  const [openAiKeyInput, setOpenAiKeyInput] = useState(() => getOpenAiApiKey() || '')
+  // API Key State (Gemini)
   const [geminiKeyInput, setGeminiKeyInput] = useState(() => getGeminiApiKey() || '')
   const [showKeyModal, setShowKeyModal]   = useState(false)
-  const [hasValidOpenAi, setHasValidOpenAi] = useState(Boolean(getOpenAiApiKey()))
-  const [hasValidGemini, setHasValidGemini] = useState(Boolean(getGeminiApiKey()))
+  const [hasValidKey, setHasValidKey] = useState(Boolean(getGeminiApiKey()))
 
   // AI Photo Scanner State
   const fileInputRef = useRef(null)
@@ -68,6 +124,7 @@ export default function Scanner() {
   const [isEditing, setIsEditing]           = useState(false)
   const [editedName, setEditedName]         = useState('')
   const [editedBrand, setEditedBrand]       = useState('')
+  const [dangerAlert, setDangerAlert]       = useState(null)
 
   // ── Network check ─────────────────────────────────────────────────────────
   const verifyNetwork = useCallback(async () => {
@@ -106,6 +163,39 @@ export default function Scanner() {
     setScanning(false)
   }
 
+  // ── Allergen Checker ──────────────────────────────────────────────────────
+  const checkAllergens = (product) => {
+    if (!profile?.allergies || profile.allergies.length === 0) return null
+    
+    const ingredientsText = [
+      ...(product.ingredients || []),
+      ...(product.allergens || []),
+      ...(product.concerningIngredients || []),
+      product.name || ''
+    ].join(' ').toLowerCase()
+
+    const searchMap = {
+      'Peanuts': ['peanut', 'groundnut'],
+      'Tree Nuts': ['almond', 'cashew', 'walnut', 'pecan', 'macadamia', 'pistachio', 'hazelnut'],
+      'Milk': ['milk', 'dairy', 'whey', 'casein', 'butter', 'cheese', 'cream'],
+      'Eggs': ['egg', 'albumin', 'mayo'],
+      'Gluten': ['wheat', 'gluten', 'barley', 'rye', 'malt', 'oat'],
+      'Soy': ['soy', 'edamame', 'tofu', 'miso'],
+      'Fish': ['fish', 'tuna', 'salmon', 'cod'],
+      'Shellfish': ['shrimp', 'crab', 'lobster', 'prawn'],
+      'Sesame': ['sesame', 'tahini'],
+      'High Added Sugar': ['sugar', 'syrup', 'cane'],
+      'High Sodium': ['sodium', 'salt']
+    }
+
+    const foundAllergies = profile.allergies.filter(allergy => {
+      const terms = searchMap[allergy] || [allergy.toLowerCase()]
+      return terms.some(term => ingredientsText.includes(term))
+    })
+
+    return foundAllergies.length > 0 ? foundAllergies : null
+  }
+
   // ── Handle Barcode Result ─────────────────────────────────────────────────
   const handleBarcode = async (barcode) => {
     const code = String(barcode).trim()
@@ -126,6 +216,25 @@ export default function Scanner() {
       const product = await fetchProductByBarcode(code)
       if (product) {
         addScanToHistory(product)
+        const allergensFound = checkAllergens(product)
+        if (allergensFound) {
+          if (navigator.vibrate) navigator.vibrate([500, 200, 500, 200, 1000]) // Danger haptics
+          if (voiceEnabled && window.speechSynthesis) {
+            window.speechSynthesis.cancel()
+            const msg = new SpeechSynthesisUtterance(`Warning! This product contains ${allergensFound.join(' and ')}. Do not consume!`)
+            msg.rate = 1.05
+            window.speechSynthesis.speak(msg)
+          }
+          setDangerAlert({ product, allergens: allergensFound })
+          return // Stop navigation
+        }
+
+        // Vera Maari features trigger
+        triggerHapticsAndConfetti(product.healthScore)
+        if (voiceEnabled) {
+          speakResult(product.healthScore, product.name || 'This product', voiceLang)
+        }
+        
         navigate(`/product/${product.id || product.barcode}`)
       } else {
         setError(`Product with barcode "${code}" not found in database. You can scan its nutrition label using the AI Photo Scanner!`)
@@ -189,28 +298,18 @@ export default function Scanner() {
     await handleBarcode(code)
   }
 
-  // ── Handle Key Save ───────────────────────────────────────────────────────
-  const handleSaveOpenAiKey = () => {
-    if (openAiKeyInput.trim().startsWith('sk-')) {
-      setOpenAiApiKey(openAiKeyInput.trim())
-      setHasValidOpenAi(true)
-      setShowKeyModal(false)
-      setSuccess('✅ OpenAI GPT-4o-mini Vision Key saved successfully!')
-      setError('')
-    } else {
-      setError('OpenAI API Keys start with "sk-". Please paste your key from platform.openai.com/api-keys.')
-    }
-  }
 
+
+  // ── Handle Key Save ───────────────────────────────────────────────────────
   const handleSaveGeminiKey = () => {
-    if (geminiKeyInput.trim().startsWith('AIzaSy')) {
+    if (geminiKeyInput.trim().length > 20) {
       setGeminiApiKey(geminiKeyInput.trim())
-      setHasValidGemini(true)
+      setHasValidKey(true)
       setShowKeyModal(false)
       setSuccess('✅ Google Gemini API Key saved successfully!')
       setError('')
     } else {
-      setError('Google Gemini keys start with "AIzaSy". Please enter a key from aistudio.google.com.')
+      setError('Please enter a valid Google Gemini API key from aistudio.google.com.')
     }
   }
 
@@ -237,6 +336,25 @@ export default function Scanner() {
       setEditedName(result.name)
       setEditedBrand(result.brand)
       setSuccess(`✅ Successfully analyzed "${result.name}"!`)
+      const allergensFound = checkAllergens(result)
+      if (allergensFound) {
+        if (navigator.vibrate) navigator.vibrate([500, 200, 500, 200, 1000])
+        if (voiceEnabled && window.speechSynthesis) {
+          window.speechSynthesis.cancel()
+          const msg = new SpeechSynthesisUtterance(`Warning! This product contains ${allergensFound.join(' and ')}. Do not consume!`)
+          msg.rate = 1.05
+          window.speechSynthesis.speak(msg)
+        }
+        setExtractedProduct(result)
+        setDangerAlert({ product: result, allergens: allergensFound })
+        return
+      }
+      
+      // Vera Maari features trigger
+      triggerHapticsAndConfetti(result.healthScore)
+      if (voiceEnabled) {
+        speakResult(result.healthScore, result.name || 'This product', voiceLang)
+      }
     } catch (err) {
       console.error('Photo analysis error:', err)
       setError(err.message || 'Could not analyze photo. Please ensure the nutrition label is clearly visible.')
@@ -325,10 +443,48 @@ export default function Scanner() {
     )
   }
 
+  // ── Dynamic Theming Helper ────────────────────────────────────────────────
+  const getThemeColor = () => {
+    if (!extractedProduct) return 'transparent'
+    const score = extractedProduct.healthScore
+    if (score >= 80) return 'rgba(76, 174, 122, 0.15)' // Green
+    if (score >= 50) return 'rgba(234, 179, 8, 0.15)' // Yellow
+    return 'rgba(239, 68, 68, 0.12)' // Red
+  }
+
   // ── Main View ─────────────────────────────────────────────────────────────
   return (
     <AppShell title="Scan Product">
-      <div className="max-w-xl mx-auto pb-10 fade-in-up">
+      {/* Dynamic Emotion Background Glow */}
+      <div 
+        className="fixed inset-0 pointer-events-none transition-colors duration-1000 z-0" 
+        style={{ backgroundColor: getThemeColor() }} 
+      />
+      <div className="max-w-xl mx-auto pb-10 fade-in-up relative z-10">
+
+        {/* AI Voice Language Selector */}
+        <div className="flex items-center justify-between p-3 mb-4 rounded-2xl bg-white/40 dark:bg-black/20 backdrop-blur-md border border-moss-200/50 dark:border-white/10 shadow-sm">
+          <span className="text-xs font-semibold text-ink/70 dark:text-white/60 ml-2">Voice Language</span>
+          <div className="flex gap-1 bg-moss-100/50 dark:bg-white/5 p-1 rounded-xl">
+            {[
+              { id: 'en-US', label: '🇬🇧 EN' },
+              { id: 'ta-IN', label: '🇮🇳 TA' },
+              { id: 'hi-IN', label: '🇮🇳 HI' }
+            ].map(lang => (
+              <button
+                key={lang.id}
+                onClick={() => setVoiceLang(lang.id)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  voiceLang === lang.id 
+                    ? 'bg-moss-700 text-white shadow-soft' 
+                    : 'text-ink/60 dark:text-white/50 hover:bg-moss-200/50 dark:hover:bg-white/10'
+                }`}
+              >
+                {lang.label}
+              </button>
+            ))}
+          </div>
+        </div>
 
         {/* Mode Selector Tabs */}
         <div className="flex gap-1.5 p-1.5 bg-moss-50 dark:bg-white/5 rounded-2xl mb-4 shadow-xs">
@@ -395,12 +551,20 @@ export default function Scanner() {
         )}
 
         {/* Global Notifications */}
-        {success && (
-          <div className="mb-4 p-3.5 rounded-xl bg-leaf-light/15 text-leaf-dark dark:text-leaf border border-leaf/30 text-xs font-medium flex items-center gap-2.5 fade-in-up">
-            <CheckCircle2 size={17} className="shrink-0 text-leaf" />
-            <span>{success}</span>
-          </div>
-        )}
+        <AnimatePresence>
+          {success && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.8, y: -10 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+              className="mb-4 p-3.5 rounded-xl bg-leaf-light/15 text-leaf-dark dark:text-leaf border border-leaf/30 text-xs font-medium flex items-center gap-2.5 shadow-glow"
+            >
+              <CheckCircle2 size={17} className="shrink-0 text-leaf drop-shadow-md" />
+              <span>{success}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {error && (
           <div className="mb-4 p-3.5 rounded-xl bg-clay/10 text-clay text-xs border border-clay/20 flex items-start gap-2.5 fade-in-up">
@@ -436,15 +600,13 @@ export default function Scanner() {
                   Snap the nutrition facts table on the back of any food packet. Gemini Vision AI reads the real values.
                 </p>
               </div>
-              {hasValidKey && (
-                <button
-                  onClick={() => setShowKeyModal(true)}
-                  title="Configure Gemini API Key"
-                  className="p-2 rounded-xl bg-mint-tint dark:bg-white/5 hover:bg-moss-100 text-moss-700 dark:text-leaf-light shrink-0 transition-colors"
-                >
-                  <Key size={15} />
-                </button>
-              )}
+              <button
+                onClick={() => setShowKeyModal(true)}
+                title="Configure AI API Key"
+                className="p-2 rounded-xl bg-mint-tint dark:bg-white/5 hover:bg-moss-100 text-moss-700 dark:text-leaf-light shrink-0 transition-colors shadow-sm"
+              >
+                <Key size={16} className={hasValidKey ? "text-leaf" : "text-clay"} />
+              </button>
             </div>
 
             {/* Photo Capture / Upload Area */}
@@ -515,9 +677,16 @@ export default function Scanner() {
                 </div>
               </div>
             )}
+            
+            {/* ── Glassmorphic Skeleton Loader ─────────────────────────────── */}
+            {analyzingPhoto && (
+              <div className="mt-4 fade-in-up">
+                <SkeletonLoader />
+              </div>
+            )}
 
             {/* ── Extracted Product Review Card ──────────────────────────────── */}
-            {extractedProduct && (
+            {extractedProduct && !analyzingPhoto && (
               <div className="glass-panel p-5 sm:p-6 border border-leaf/30 shadow-glow rounded-2xl fade-in-up">
                 <div className="flex items-start justify-between gap-3 pb-4 border-b border-moss-100 dark:border-white/10">
                   <div className="flex-1">
@@ -706,10 +875,17 @@ export default function Scanner() {
               </div>
 
               {/* Camera display */}
-              <div
-                id="barcode-reader"
-                className="w-full overflow-hidden rounded-2xl bg-black min-h-[260px] border border-moss-100/40 dark:border-white/5"
-              />
+              <div className="relative w-full rounded-2xl overflow-hidden bg-black min-h-[260px] border border-moss-100/40 dark:border-white/5">
+                <div id="barcode-reader" className="w-full" />
+                {scanning && (
+                  <div className="absolute inset-0 pointer-events-none scan-sweep z-20">
+                    <div className="scanner-bracket bracket-tl" />
+                    <div className="scanner-bracket bracket-tr" />
+                    <div className="scanner-bracket bracket-bl" />
+                    <div className="scanner-bracket bracket-br" />
+                  </div>
+                )}
+              </div>
 
               {!scanning ? (
                 <button
@@ -798,37 +974,7 @@ export default function Scanner() {
               </div>
 
               <div className="space-y-5">
-                {/* 1. OpenAI GPT-4o-mini Vision (Primary) */}
-                <div className="p-3.5 rounded-xl bg-leaf-light/10 border border-leaf/20">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <p className="text-xs font-bold text-leaf-dark dark:text-leaf-light flex items-center gap-1.5">
-                      <Sparkles size={14} /> OpenAI GPT-4o-mini (Recommended)
-                    </p>
-                    <a
-                      href="https://platform.openai.com/api-keys"
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-[10px] text-leaf-dark dark:text-leaf hover:underline flex items-center gap-0.5"
-                    >
-                      Get Key <ExternalLink size={10} />
-                    </a>
-                  </div>
-                  <div className="flex gap-2">
-                    <input
-                      type="password"
-                      value={openAiKeyInput}
-                      onChange={(e) => setOpenAiKeyInput(e.target.value)}
-                      placeholder="sk-proj-..."
-                      className="input-base text-xs font-mono flex-1"
-                    />
-                    <button
-                      onClick={handleSaveOpenAiKey}
-                      className="btn-primary text-xs px-3.5 py-1.5 rounded-xl font-semibold"
-                    >
-                      Save
-                    </button>
-                  </div>
-                </div>
+
 
                 {/* 2. Google Gemini Vision */}
                 <div className="p-3.5 rounded-xl bg-moss-50 dark:bg-white/5 border border-moss-100 dark:border-white/10">
@@ -870,6 +1016,39 @@ export default function Scanner() {
                     Close
                   </button>
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+        {/* Danger Alert Modal */}
+        {dangerAlert && (
+          <div className="fixed inset-0 z-50 bg-clay/90 backdrop-blur-md flex items-center justify-center p-4 fade-in-up">
+            <div className="bg-white dark:bg-[#12211A] rounded-3xl w-full max-w-sm p-8 shadow-2xl flex flex-col items-center text-center border border-clay/30">
+              <div className="h-20 w-20 bg-clay/10 rounded-full flex items-center justify-center mb-6 animate-pulse">
+                <AlertCircle size={40} className="text-clay" />
+              </div>
+              <h2 className="font-display font-black text-2xl text-clay uppercase tracking-tight mb-2">Danger</h2>
+              <p className="text-sm font-semibold text-ink/70 dark:text-white/60 mb-6">
+                This product contains <span className="font-bold text-clay underline decoration-clay/30">{dangerAlert.allergens.join(' and ')}</span>, which matches your allergy profile!
+              </p>
+              
+              <div className="flex flex-col gap-3 w-full">
+                <button
+                  onClick={() => {
+                    const prod = dangerAlert.product
+                    setDangerAlert(null)
+                    navigate(`/product/${prod.id || prod.barcode}`)
+                  }}
+                  className="btn-secondary w-full py-3 rounded-2xl"
+                >
+                  I Understand, View Anyway
+                </button>
+                <button
+                  onClick={() => setDangerAlert(null)}
+                  className="w-full py-3 rounded-2xl font-bold text-white bg-clay hover:bg-red-600 transition-colors shadow-lg shadow-clay/20"
+                >
+                  Cancel & Scan Another
+                </button>
               </div>
             </div>
           </div>

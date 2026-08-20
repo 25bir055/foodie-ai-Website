@@ -4,6 +4,9 @@ import { Leaf, Mail, Lock, ScanBarcode, ShieldCheck, Sparkles, Eye, EyeOff, Arro
 import { useApp } from '../store.jsx'
 import { loginWithEmail, signupWithEmail, loginWithGoogle } from '../services/auth'
 
+import AnimatedBackground from '../components/AnimatedBackground.jsx'
+import ScrollReveal from '../components/ScrollReveal.jsx'
+
 const FEATURES = [
   { icon: ScanBarcode, label: 'Instant Barcode Scan', desc: 'Scan any packaged food in seconds' },
   { icon: Sparkles, label: 'AI Health Insights', desc: 'Personalised nutrition explanations' },
@@ -98,7 +101,9 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen grid lg:grid-cols-[1.1fr,0.9fr] bg-cream dark:bg-[#0B1712]">
+    <>
+      <AnimatedBackground />
+      <div className="min-h-screen grid lg:grid-cols-[1.1fr,0.9fr] bg-transparent">
 
       {/* ── Left Illustration Panel ─────────────────────────────── */}
       <div className="hidden lg:flex flex-col justify-between relative overflow-hidden bg-moss-700 px-14 py-10 text-white">
@@ -196,7 +201,8 @@ export default function Login() {
         {/* Subtle bg orb */}
         <div className="absolute top-0 right-0 h-64 w-64 rounded-full bg-leaf/5 blur-3xl pointer-events-none" />
 
-        <div className="w-full max-w-sm relative fade-in-up">
+        <ScrollReveal delay={0.1}>
+          <div className="w-full max-w-sm relative">
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center gap-3 mb-10 justify-center">
             <div className="h-10 w-10 rounded-xl bg-moss-700 flex items-center justify-center">
@@ -350,8 +356,10 @@ export default function Login() {
               {mode === 'signin' ? 'Create account' : 'Sign in'}
             </button>
           </p>
-        </div>
+          </div>
+        </ScrollReveal>
       </div>
     </div>
+    </>
   )
 }

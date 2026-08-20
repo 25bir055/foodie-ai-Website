@@ -12,6 +12,19 @@ export function AppProvider({ children }) {
   const [theme, setTheme] = useState(() => localStorage.getItem('foodie_theme') || 'light')
   const [productsList, setProductsList] = useState(PRODUCTS)
 
+  const [voiceEnabled, setVoiceEnabled] = useState(() => {
+    try {
+      const stored = localStorage.getItem('foodie_voice_enabled')
+      return stored !== null ? JSON.parse(stored) : true
+    } catch {
+      return true
+    }
+  })
+
+  useEffect(() => {
+    localStorage.setItem('foodie_voice_enabled', JSON.stringify(voiceEnabled))
+  }, [voiceEnabled])
+
   const userKey = user?.uid || user?._id || user?.email || 'anonymous'
 
   // Shopping List — empty by default, isolated per user
@@ -99,6 +112,7 @@ export function AppProvider({ children }) {
     dietaryPreference: 'Vegetarian',
     calorieGoal: 2100,
     goals: ['Low Sugar', 'High Protein'],
+    allergies: [],
     profileCompleted: false
   })
 
@@ -375,6 +389,8 @@ export function AppProvider({ children }) {
       userName,
       theme,
       toggleTheme: () => setTheme((t) => (t === 'light' ? 'dark' : 'light')),
+      voiceEnabled,
+      toggleVoice: () => setVoiceEnabled((v) => !v),
       shoppingList,
       addToShoppingList,
       removeFromShoppingList,

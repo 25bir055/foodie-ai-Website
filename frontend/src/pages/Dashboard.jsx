@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import AppShell from '../components/AppShell.jsx'
 import HealthScoreRing from '../components/HealthScoreRing.jsx'
+import ScrollReveal from '../components/ScrollReveal.jsx'
 import { MACROS_TODAY, AI_INSIGHTS } from '../data/mockData'
 import { useApp } from '../store.jsx'
 
@@ -108,204 +109,214 @@ export default function Dashboard() {
         </div>
       </button>
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-[1.1fr,0.9fr]">
-        <div className="glass-panel p-4">
-          <div className="flex items-center justify-between">
-            <h2 className="font-display text-lg font-medium text-ink dark:text-white flex items-center gap-2"><Target size={18} className="text-leaf" /> Scan Summary</h2>
-            <button onClick={() => navigate('/personal-dashboard')} className="text-xs font-semibold text-leaf-dark hover:underline">View details</button>
-          </div>
-          <div className="mt-4 space-y-4">
-            <div className="flex items-center justify-between rounded-2xl bg-mint-tint p-3 dark:bg-white/5">
-              <div>
-                <p className="text-[11px] uppercase tracking-[0.15em] text-ink/40 dark:text-white/35">Avg Scan Health score</p>
-                <p className="mt-1 text-2xl font-bold text-ink dark:text-white">{averageHealthScore}</p>
+      <ScrollReveal delay={0.1}>
+        <div className="mt-6 grid gap-4 lg:grid-cols-[1.1fr,0.9fr]">
+          <div className="glass-panel p-4">
+            <div className="flex items-center justify-between">
+              <h2 className="font-display text-lg font-medium text-ink dark:text-white flex items-center gap-2"><Target size={18} className="text-leaf" /> Scan Summary</h2>
+              <button onClick={() => navigate('/personal-dashboard')} className="text-xs font-semibold text-leaf-dark hover:underline">View details</button>
+            </div>
+            <div className="mt-4 space-y-4">
+              <div className="flex items-center justify-between rounded-2xl bg-mint-tint p-3 dark:bg-white/5">
+                <div>
+                  <p className="text-[11px] uppercase tracking-[0.15em] text-ink/40 dark:text-white/35">Avg Scan Health score</p>
+                  <p className="mt-1 text-2xl font-bold text-ink dark:text-white">{averageHealthScore}</p>
+                </div>
+                <div className="rounded-full bg-leaf/10 px-2.5 py-1 text-[10px] font-semibold text-moss-700 dark:text-leaf-light">{scansToDisplay.length} Total Scans</div>
               </div>
-              <div className="rounded-full bg-leaf/10 px-2.5 py-1 text-[10px] font-semibold text-moss-700 dark:text-leaf-light">{scansToDisplay.length} Total Scans</div>
-            </div>
-            <div className="grid grid-cols-3 gap-2 text-center">
-              <div className="rounded-2xl bg-white/60 p-3 dark:bg-white/5"><p className="text-[10px] uppercase tracking-[0.13em] text-ink/35 dark:text-white/35">History</p><p className="mt-1 text-lg font-bold text-ink dark:text-white">{scansToDisplay.length}</p></div>
-              <div className="rounded-2xl bg-white/60 p-3 dark:bg-white/5"><p className="text-[10px] uppercase tracking-[0.13em] text-ink/35 dark:text-white/35">Sugar Avg</p><p className="mt-1 text-lg font-bold text-ink dark:text-white">12g</p></div>
-              <div className="rounded-2xl bg-white/60 p-3 dark:bg-white/5"><p className="text-[10px] uppercase tracking-[0.13em] text-ink/35 dark:text-white/35">Protein Avg</p><p className="mt-1 text-lg font-bold text-ink dark:text-white">14g</p></div>
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="rounded-2xl bg-white/60 p-3 dark:bg-white/5"><p className="text-[10px] uppercase tracking-[0.13em] text-ink/35 dark:text-white/35">History</p><p className="mt-1 text-lg font-bold text-ink dark:text-white">{scansToDisplay.length}</p></div>
+                <div className="rounded-2xl bg-white/60 p-3 dark:bg-white/5"><p className="text-[10px] uppercase tracking-[0.13em] text-ink/35 dark:text-white/35">Sugar Avg</p><p className="mt-1 text-lg font-bold text-ink dark:text-white">12g</p></div>
+                <div className="rounded-2xl bg-white/60 p-3 dark:bg-white/5"><p className="text-[10px] uppercase tracking-[0.13em] text-ink/35 dark:text-white/35">Protein Avg</p><p className="mt-1 text-lg font-bold text-ink dark:text-white">14g</p></div>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="glass-panel p-4">
-          <div className="flex items-center justify-between">
-            <h2 className="font-display text-lg font-medium text-ink dark:text-white flex items-center gap-2"><Zap size={18} className="text-leaf" /> Smart nudges</h2>
-          </div>
-          <div className="mt-4 space-y-2">
-            {smartNudges.map((nudge) => (
-              <div key={nudge} className="flex items-start gap-3 rounded-2xl bg-mint-tint p-3 dark:bg-white/5"><div className="mt-0.5 h-2.5 w-2.5 rounded-full bg-leaf shrink-0" /><p className="text-sm text-ink/70 dark:text-white/70">{nudge}</p></div>
-            ))}
+          <div className="glass-panel p-4">
+            <div className="flex items-center justify-between">
+              <h2 className="font-display text-lg font-medium text-ink dark:text-white flex items-center gap-2"><Zap size={18} className="text-leaf" /> Smart nudges</h2>
+            </div>
+            <div className="mt-4 space-y-2">
+              {smartNudges.map((nudge) => (
+                <div key={nudge} className="flex items-start gap-3 rounded-2xl bg-mint-tint p-3 dark:bg-white/5"><div className="mt-0.5 h-2.5 w-2.5 rounded-full bg-leaf shrink-0" /><p className="text-sm text-ink/70 dark:text-white/70">{nudge}</p></div>
+              ))}
+            </div>
           </div>
         </div>
-      </div>
+      </ScrollReveal>
 
       {/* ── Quick Actions ───────────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4 stagger-children">
-        {QUICK_ACTIONS.map(({ to, label, icon: Icon, desc }) => (
-          <button
-            key={to}
-            onClick={() => navigate(to)}
-            className="glass-panel p-4 flex items-center gap-3 card-hover focus-ring text-left fade-in-up"
-          >
-            <div className="h-10 w-10 rounded-xl bg-mint-tint dark:bg-white/5 flex items-center justify-center text-moss-700 dark:text-leaf-light shrink-0">
-              <Icon size={18} />
-            </div>
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-ink dark:text-white/90">{label}</p>
-              <p className="text-[11px] text-ink/40 dark:text-white/35 mt-0.5">{desc}</p>
-            </div>
-            <ArrowRight size={14} className="ml-auto text-ink/25 shrink-0" />
-          </button>
-        ))}
-      </div>
-
-      <div className="grid lg:grid-cols-[1fr,360px] gap-4 mt-6">
-        {/* ── Nutrition Overview ─────────────────────────── */}
-        <section>
-          <div className="section-header">
-            <h2 className="font-display text-lg font-medium text-ink dark:text-white flex items-center gap-2">
-              <BarChart2 size={18} className="text-leaf" />
-              Nutrition Overview
-            </h2>
-          </div>
-          <div className="glass-panel p-5 sm:p-6">
-            <div className="grid sm:grid-cols-[auto,1fr] gap-6 items-center">
-              <div className="flex flex-col items-center gap-2 sm:border-r sm:border-moss-100 dark:sm:border-white/10 sm:pr-6">
-                <HealthScoreRing score={averageHealthScore} size={120} />
-                <p className="text-xs text-ink/50 dark:text-white/40 text-center">Scan Health<br />Score Average</p>
+      <ScrollReveal delay={0.2}>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4 stagger-children">
+          {QUICK_ACTIONS.map(({ to, label, icon: Icon, desc }) => (
+            <button
+              key={to}
+              onClick={() => navigate(to)}
+              className="glass-panel p-4 flex items-center gap-3 card-hover focus-ring text-left fade-in-up"
+            >
+              <div className="h-10 w-10 rounded-xl bg-mint-tint dark:bg-white/5 flex items-center justify-center text-moss-700 dark:text-leaf-light shrink-0">
+                <Icon size={18} />
               </div>
-              <div className="flex flex-col gap-4">
-                {MACROS_TODAY.map((m) => (
-                  <div key={m.name}>
-                    <div className="flex items-center justify-between text-xs mb-1.5">
-                      <span className="font-semibold text-ink/70 dark:text-white/60">{m.name}</span>
-                      <span className="data-num text-ink/40 dark:text-white/40">{m.value}/{m.goal}{m.unit}</span>
-                    </div>
-                    <div className="h-2 rounded-full bg-moss-50 dark:bg-white/5 overflow-hidden">
-                      <div
-                        className="h-full rounded-full progress-animated"
-                        style={{ width: `${Math.min(100, (m.value / m.goal) * 100)}%`, backgroundColor: m.color }}
-                      />
-                    </div>
-                  </div>
-                ))}
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-ink dark:text-white/90">{label}</p>
+                <p className="text-[11px] text-ink/40 dark:text-white/35 mt-0.5">{desc}</p>
               </div>
-            </div>
-          </div>
-        </section>
+              <ArrowRight size={14} className="ml-auto text-ink/25 shrink-0" />
+            </button>
+          ))}
+        </div>
+      </ScrollReveal>
 
-        {/* ── AI Food Insights ───────────────────────────── */}
-        <section>
-          <div className="section-header">
-            <h2 className="font-display text-lg font-medium text-ink dark:text-white flex items-center gap-2">
-              <Sparkles size={18} className="text-leaf" />
-              AI Food Insights
-            </h2>
-          </div>
-          <div className="glass-panel p-4 flex flex-col gap-2.5">
-            {AI_INSIGHTS.map((ins) => {
-              const style = INSIGHT_ICON_MAP[ins.icon] || { bg: 'bg-moss-50', text: 'text-moss-700' }
-              return (
-                <div
-                  key={ins.label}
-                  className="flex items-center gap-3 p-3 rounded-xl hover:bg-mint-tint dark:hover:bg-white/5 transition-colors cursor-pointer"
-                >
-                  <div className={`h-9 w-9 rounded-xl flex items-center justify-center text-lg shrink-0 ${style.bg}`}>
-                    {ins.icon}
-                  </div>
-                  <div className="min-w-0">
-                    <p className={`text-sm font-semibold ${style.text}`}>{ins.label}</p>
-                    <p className="text-[11px] text-ink/40 dark:text-white/35 truncate">{ins.products[0]}{ins.products[1] ? `, ${ins.products[1]}` : ''}</p>
-                  </div>
+      <ScrollReveal delay={0.1}>
+        <div className="grid lg:grid-cols-[1fr,360px] gap-4 mt-6">
+          {/* ── Nutrition Overview ─────────────────────────── */}
+          <section>
+            <div className="section-header">
+              <h2 className="font-display text-lg font-medium text-ink dark:text-white flex items-center gap-2">
+                <BarChart2 size={18} className="text-leaf" />
+                Nutrition Overview
+              </h2>
+            </div>
+            <div className="glass-panel p-5 sm:p-6">
+              <div className="grid sm:grid-cols-[auto,1fr] gap-6 items-center">
+                <div className="flex flex-col items-center gap-2 sm:border-r sm:border-moss-100 dark:sm:border-white/10 sm:pr-6">
+                  <HealthScoreRing score={averageHealthScore} size={120} />
+                  <p className="text-xs text-ink/50 dark:text-white/40 text-center">Scan Health<br />Score Average</p>
                 </div>
-              )
-            })}
-          </div>
-        </section>
-      </div>
+                <div className="flex flex-col gap-4">
+                  {MACROS_TODAY.map((m) => (
+                    <div key={m.name}>
+                      <div className="flex items-center justify-between text-xs mb-1.5">
+                        <span className="font-semibold text-ink/70 dark:text-white/60">{m.name}</span>
+                        <span className="data-num text-ink/40 dark:text-white/40">{m.value}/{m.goal}{m.unit}</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-moss-50 dark:bg-white/5 overflow-hidden">
+                        <div
+                          className="h-full rounded-full progress-animated"
+                          style={{ width: `${Math.min(100, (m.value / m.goal) * 100)}%`, backgroundColor: m.color }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* ── AI Food Insights ───────────────────────────── */}
+          <section>
+            <div className="section-header">
+              <h2 className="font-display text-lg font-medium text-ink dark:text-white flex items-center gap-2">
+                <Sparkles size={18} className="text-leaf" />
+                AI Food Insights
+              </h2>
+            </div>
+            <div className="glass-panel p-4 flex flex-col gap-2.5">
+              {AI_INSIGHTS.map((ins) => {
+                const style = INSIGHT_ICON_MAP[ins.icon] || { bg: 'bg-moss-50', text: 'text-moss-700' }
+                return (
+                  <div
+                    key={ins.label}
+                    className="flex items-center gap-3 p-3 rounded-xl hover:bg-mint-tint dark:hover:bg-white/5 transition-colors cursor-pointer"
+                  >
+                    <div className={`h-9 w-9 rounded-xl flex items-center justify-center text-lg shrink-0 ${style.bg}`}>
+                      {ins.icon}
+                    </div>
+                    <div className="min-w-0">
+                      <p className={`text-sm font-semibold ${style.text}`}>{ins.label}</p>
+                      <p className="text-[11px] text-ink/40 dark:text-white/35 truncate">{ins.products[0]}{ins.products[1] ? `, ${ins.products[1]}` : ''}</p>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </section>
+        </div>
+      </ScrollReveal>
 
       {/* ── Recent Scans ───────────────────────────────── */}
-      <section className="mt-8">
-        <div className="section-header">
-          <h2 className="font-display text-lg font-medium text-ink dark:text-white flex items-center gap-2">
-            <Clock size={18} className="text-leaf" />
-            Recent Scans {scansToDisplay.length > 0 && `(${scansToDisplay.length})`}
-          </h2>
-          {scansToDisplay.length > 0 && (
-            <button onClick={() => navigate('/search')} className="text-xs font-semibold text-leaf-dark hover:underline flex items-center gap-1">
-              See all <ArrowRight size={12} />
-            </button>
-          )}
-        </div>
-
-        {scansToDisplay.length > 0 ? (
-          <div className="grid sm:grid-cols-2 gap-3">
-            {scansToDisplay.slice(0, 6).map((p, idx) => (
-              <button
-                key={p.id || p.barcode || idx}
-                onClick={() => navigate(`/product/${p.id || p.barcode}`)}
-                className="glass-panel p-4 flex items-center gap-4 card-hover text-left focus-ring"
-              >
-                <div className="h-14 w-14 rounded-xl2 bg-mint-tint dark:bg-white/5 flex items-center justify-center text-2xl shrink-0 overflow-hidden">
-                  {p.imageUrl ? (
-                    <img
-                      src={p.imageUrl}
-                      alt={p.name || 'Product'}
-                      className="h-full w-full object-contain p-1"
-                      onError={(e) => { e.currentTarget.style.display = 'none' }}
-                    />
-                  ) : (
-                    <span>{p.image || '🥣'}</span>
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-sm text-ink dark:text-white/90 truncate">{p.name}</p>
-                  <p className="text-xs text-ink/40 dark:text-white/40">{p.brand ? `${p.brand} · ` : ''}{p.category}</p>
-                  <p className="text-[11px] text-ink/30 dark:text-white/30 mt-0.5">{p.scannedAt || 'Recently'}</p>
-                </div>
-                <div className="flex flex-col items-end gap-2 shrink-0">
-                  <HealthScoreRing score={p.healthScore || 50} size={44} strokeWidth={5} showLabel={false} />
-                  <span className="text-[10px] font-semibold text-leaf-dark dark:text-leaf-light">View →</span>
-                </div>
+      <ScrollReveal delay={0.1}>
+        <section className="mt-8">
+          <div className="section-header">
+            <h2 className="font-display text-lg font-medium text-ink dark:text-white flex items-center gap-2">
+              <Clock size={18} className="text-leaf" />
+              Recent Scans {scansToDisplay.length > 0 && `(${scansToDisplay.length})`}
+            </h2>
+            {scansToDisplay.length > 0 && (
+              <button onClick={() => navigate('/search')} className="text-xs font-semibold text-leaf-dark hover:underline flex items-center gap-1">
+                See all <ArrowRight size={12} />
               </button>
-            ))}
+            )}
           </div>
-        ) : (
-          <div className="glass-panel p-8 text-center sm:p-10">
-            <div className="h-12 w-12 rounded-2xl bg-mint-tint dark:bg-white/5 flex items-center justify-center mx-auto mb-3 text-2xl">
-              📦
+
+          {scansToDisplay.length > 0 ? (
+            <div className="grid sm:grid-cols-2 gap-3">
+              {scansToDisplay.slice(0, 6).map((p, idx) => (
+                <button
+                  key={p.id || p.barcode || idx}
+                  onClick={() => navigate(`/product/${p.id || p.barcode}`)}
+                  className="glass-panel p-4 flex items-center gap-4 card-hover text-left focus-ring"
+                >
+                  <div className="h-14 w-14 rounded-xl2 bg-mint-tint dark:bg-white/5 flex items-center justify-center text-2xl shrink-0 overflow-hidden">
+                    {p.imageUrl ? (
+                      <img
+                        src={p.imageUrl}
+                        alt={p.name || 'Product'}
+                        className="h-full w-full object-contain p-1"
+                        onError={(e) => { e.currentTarget.style.display = 'none' }}
+                      />
+                    ) : (
+                      <span>{p.image || '🥣'}</span>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-sm text-ink dark:text-white/90 truncate">{p.name}</p>
+                    <p className="text-xs text-ink/40 dark:text-white/40">{p.brand ? `${p.brand} · ` : ''}{p.category}</p>
+                    <p className="text-[11px] text-ink/30 dark:text-white/30 mt-0.5">{p.scannedAt || 'Recently'}</p>
+                  </div>
+                  <div className="flex flex-col items-end gap-2 shrink-0">
+                    <HealthScoreRing score={p.healthScore || 50} size={44} strokeWidth={5} showLabel={false} />
+                    <span className="text-[10px] font-semibold text-leaf-dark dark:text-leaf-light">View →</span>
+                  </div>
+                </button>
+              ))}
             </div>
-            <p className="font-display font-medium text-base text-ink dark:text-white">No scans yet</p>
-            <p className="text-xs text-ink/50 dark:text-white/40 mt-1 max-w-xs mx-auto">
-              Scan a product barcode or search to see your personal scan history and scores here.
-            </p>
-            <button
-              onClick={() => navigate('/scan')}
-              className="btn-primary mt-4 inline-flex items-center gap-2 text-xs py-2 px-4"
-            >
-              <ScanBarcode size={14} /> Scan First Product
-            </button>
-          </div>
-        )}
-      </section>
+          ) : (
+            <div className="glass-panel p-8 text-center sm:p-10">
+              <div className="h-12 w-12 rounded-2xl bg-mint-tint dark:bg-white/5 flex items-center justify-center mx-auto mb-3 text-2xl">
+                📦
+              </div>
+              <p className="font-display font-medium text-base text-ink dark:text-white">No scans yet</p>
+              <p className="text-xs text-ink/50 dark:text-white/40 mt-1 max-w-xs mx-auto">
+                Scan a product barcode or search to see your personal scan history and scores here.
+              </p>
+              <button
+                onClick={() => navigate('/scan')}
+                className="btn-primary mt-4 inline-flex items-center gap-2 text-xs py-2 px-4"
+              >
+                <ScanBarcode size={14} /> Scan First Product
+              </button>
+            </div>
+          )}
+        </section>
+      </ScrollReveal>
 
       {/* ── Today's Tip ─────────────────────────────────── */}
-      <section className="mt-6">
-        <div className="glass-panel p-5 flex gap-4 items-start bg-gradient-to-r from-moss-700/5 to-transparent dark:from-moss-700/20 border-l-4 border-l-leaf">
-          <div className="h-10 w-10 rounded-xl bg-leaf-light/20 flex items-center justify-center shrink-0">
-            <Zap size={18} className="text-leaf-dark" />
+      <ScrollReveal delay={0.2}>
+        <section className="mt-6">
+          <div className="glass-panel p-5 flex gap-4 items-start bg-gradient-to-r from-moss-700/5 to-transparent dark:from-moss-700/20 border-l-4 border-l-leaf">
+            <div className="h-10 w-10 rounded-xl bg-leaf-light/20 flex items-center justify-center shrink-0">
+              <Zap size={18} className="text-leaf-dark" />
+            </div>
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-widest text-leaf-dark mb-1">Today's Tip</p>
+              <p className="text-sm text-ink/80 dark:text-white/80 leading-relaxed">
+                Drinking a glass of water before a meal can help you feel more full and prevents overeating.
+              </p>
+            </div>
           </div>
-          <div>
-            <p className="text-sm font-semibold text-ink dark:text-white">Today's Nutrition Tip</p>
-            <p className="text-sm text-ink/60 dark:text-white/50 mt-1 leading-relaxed">
-              Reading ingredient lists is more important than the nutrition table. If sugar or refined flour is in the first 3 ingredients, it's a treat — not a staple.
-            </p>
-          </div>
-        </div>
-      </section>
+        </section>
+      </ScrollReveal>
     </AppShell>
   )
 }

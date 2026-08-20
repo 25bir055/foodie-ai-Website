@@ -1,23 +1,22 @@
 import React, { useState } from 'react'
-import { Moon, Sun, Bell, Shield, LogOut, Palette, Globe, ChevronRight, User, Lock, Download, Trash2, Check, AlertCircle } from 'lucide-react'
+import { Moon, Sun, Bell, Shield, LogOut, Palette, Globe, ChevronRight, User, Lock, Download, Trash2, Check, AlertCircle, Volume2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import AppShell from '../components/AppShell.jsx'
 import { useApp } from '../store.jsx'
 import { changeUserPassword, deleteUserAccount, updateUserProfile } from '../services/auth'
 
-function Toggle({ checked, onChange, id }) {
+function Toggle({ checked, id }) {
   return (
-    <button
+    <div
       id={id}
-      onClick={onChange}
-      className={`h-6 w-11 rounded-full flex items-center px-0.5 transition-all focus-ring shrink-0 ${
+      className={`h-6 w-11 rounded-full flex items-center px-0.5 transition-all shrink-0 ${
         checked ? 'bg-moss-700 justify-end' : 'bg-moss-100 dark:bg-white/10 justify-start'
       }`}
       role="switch"
       aria-checked={checked}
     >
       <span className="h-5 w-5 rounded-full bg-white shadow transition-all" />
-    </button>
+    </div>
   )
 }
 
@@ -46,7 +45,7 @@ function SettingsRow({ icon: Icon, title, desc, right, onClick, danger }) {
 }
 
 export default function Settings() {
-  const { theme, toggleTheme, logout, userName, user, setUser, scanHistory, clearScanHistory } = useApp()
+  const { theme, toggleTheme, voiceEnabled, toggleVoice, logout, userName, user, setUser, scanHistory, clearScanHistory } = useApp()
   const navigate = useNavigate()
   
   const [notifs, setNotifs] = useState(true)
@@ -92,34 +91,7 @@ export default function Settings() {
     }
   }
 
-  const exportDataAsCSV = () => {
-    if (!scanHistory || scanHistory.length === 0) {
-      alert('No scan history available to export.')
-      return
-    }
 
-    const headers = ['Name', 'Brand', 'Category', 'Barcode', 'HealthScore', 'Calories', 'Sugar_g', 'Protein_g', 'ScannedAt']
-    const rows = scanHistory.map((item) => [
-      `"${item.name || ''}"`,
-      `"${item.brand || ''}"`,
-      `"${item.category || ''}"`,
-      `"${item.barcode || ''}"`,
-      item.healthScore || 0,
-      item.calories || 0,
-      item.sugar || 0,
-      item.protein || 0,
-      `"${item.scannedAt || ''}"`
-    ])
-
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n')
-    const encodedUri = encodeURI(csvContent)
-    const link = document.createElement('a')
-    link.setAttribute('href', encodedUri)
-    link.setAttribute('download', `foodie_ai_scan_history_${Date.now()}.csv`)
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-  }
 
   const handleDeleteAccount = async () => {
     if (confirm('Are you sure you want to permanently delete your Foodie AI account? This action cannot be undone.')) {
@@ -167,9 +139,9 @@ export default function Settings() {
           </div>
         </div>
 
-        {/* Appearance */}
+        {/* Appearance & Accessibility */}
         <div className="glass-panel overflow-hidden">
-          <p className="text-[11px] font-bold text-ink/40 dark:text-white/30 uppercase tracking-widest px-4 pt-4 pb-1">Appearance</p>
+          <p className="text-[11px] font-bold text-ink/40 dark:text-white/30 uppercase tracking-widest px-4 pt-4 pb-1">Appearance & Sound</p>
           <SettingsRow
             icon={theme === 'light' ? Moon : Sun}
             title="Dark Mode"
@@ -178,10 +150,11 @@ export default function Settings() {
             right={<Toggle checked={theme === 'dark'} onChange={toggleTheme} id="dark-mode-toggle" />}
           />
           <SettingsRow
-            icon={Palette}
-            title="Theme & Colours"
-            desc="Customise accent colour (Default Mint Leaf)"
-            onClick={() => {}}
+            icon={Volume2}
+            title="AI Voice Assistant"
+            desc="Speak out nutrition insights after scanning"
+            onClick={toggleVoice}
+            right={<Toggle checked={voiceEnabled} onChange={toggleVoice} id="voice-toggle" />}
           />
         </div>
 
@@ -214,12 +187,7 @@ export default function Settings() {
             onClick={() => setSaveHistoryToggle((n) => !n)}
             right={<Toggle checked={saveHistoryToggle} onChange={() => setSaveHistoryToggle((n) => !n)} id="history-toggle" />}
           />
-          <SettingsRow
-            icon={Download}
-            title="Export My Data (CSV)"
-            desc="Download your scan history as a CSV file"
-            onClick={exportDataAsCSV}
-          />
+
           <SettingsRow
             icon={Trash2}
             title="Delete Account"
