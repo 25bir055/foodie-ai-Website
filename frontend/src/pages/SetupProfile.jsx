@@ -3,6 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import { Leaf, Check, AlertCircle, Loader2, ArrowLeft } from 'lucide-react'
 import { useApp } from '../store.jsx'
 import { updateUserProfile } from '../services/auth'
+import AllergySelector from '../components/AllergySelector'
+
+const GENDER_OPTIONS = ['Male', 'Female', 'Other', 'Prefer not to say']
 
 const DIETARY_OPTIONS = [
   'Vegetarian', 'Vegan', 'Non-Vegetarian', 'Eggetarian', 
@@ -41,8 +44,10 @@ export default function SetupProfile() {
     height: '',
     weight: '',
     calorieGoal: '',
+    gender: '',
     dietaryPreferences: [],
-    goals: []
+    goals: [],
+    allergies: []
   })
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
@@ -103,6 +108,7 @@ export default function SetupProfile() {
     if (weight <= 0 || weight > 500) return setError('Please enter a valid weight.')
     if (!form.calorieGoal) return setError('Please enter your daily calorie goal.')
     if (calorieGoal <= 0 || calorieGoal > 10000) return setError('Please enter a valid daily calorie goal.')
+    if (!form.gender) return setError('Please select your gender.')
     
     if (form.dietaryPreferences.length === 0) return setError('Please select at least one dietary preference.')
     if (form.goals.length === 0) return setError('Please select at least one goal.')
@@ -118,8 +124,10 @@ export default function SetupProfile() {
         height,
         weight,
         calorieGoal,
+        gender: form.gender,
         dietaryPreferences: form.dietaryPreferences,
         goals: form.goals,
+        allergies: form.allergies,
         profileCompleted: true
       }
 
@@ -217,6 +225,27 @@ export default function SetupProfile() {
           </div>
 
           <div className="mb-8">
+            <h3 className="text-sm font-semibold text-ink dark:text-white mb-3">Gender</h3>
+            <div className="flex flex-wrap gap-2">
+              {GENDER_OPTIONS.map((opt) => (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => update('gender', opt)}
+                  className={`flex items-center gap-1.5 text-xs font-medium px-3.5 py-2 rounded-full border transition-all focus-ring ${
+                    form.gender === opt
+                      ? 'bg-leaf-light/20 border-leaf text-leaf-dark dark:text-leaf-light'
+                      : 'border-moss-100 dark:border-white/10 text-ink/60 dark:text-white/50 hover:border-leaf/40'
+                  }`}
+                >
+                  {opt}
+                  {form.gender === opt && <Check size={12} className="ml-0.5" />}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="mb-8">
             <h3 className="text-sm font-semibold text-ink dark:text-white mb-3">Dietary Preferences</h3>
             <div className="flex flex-wrap gap-2">
               {DIETARY_OPTIONS.map((opt) => (
@@ -257,6 +286,14 @@ export default function SetupProfile() {
               ))}
             </div>
           </div>
+
+          <div className="mb-10">
+            <AllergySelector 
+              selectedAllergies={form.allergies} 
+              onChange={(newAllergies) => update('allergies', newAllergies)} 
+            />
+          </div>
+
 
           <button
             onClick={handleSave}

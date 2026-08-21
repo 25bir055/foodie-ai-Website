@@ -3,6 +3,9 @@ import { Check, UserCircle2, Activity, Leaf, Edit2, X, Loader2 } from 'lucide-re
 import AppShell from '../components/AppShell.jsx'
 import { useApp } from '../store.jsx'
 import { updateUserProfile } from '../services/auth.js'
+import AllergySelector from '../components/AllergySelector.jsx'
+
+const GENDER_OPTIONS = ['Male', 'Female', 'Other', 'Prefer not to say']
 
 const ACTIVITY_LEVELS = [
   { value: 'Sedentary',         label: 'Sedentary',          desc: 'Little/no exercise',   icon: '🛋️' },
@@ -178,10 +181,32 @@ export default function Profile() {
               <InputField label="Height" value={form.height} onChange={(e) => update('height', e.target.value)} suffix="cm" />
               <InputField label="Weight" value={form.weight} onChange={(e) => update('weight', e.target.value)} suffix="kg" />
               <InputField label="Daily Calorie Goal" value={form.calorieGoal} onChange={(e) => update('calorieGoal', e.target.value)} suffix="kcal" />
+              
+              <div className="sm:col-span-2">
+                <span className="text-xs font-semibold text-ink/60 dark:text-white/50 uppercase tracking-wide">Gender</span>
+                <div className="flex flex-wrap gap-2 mt-1.5">
+                  {GENDER_OPTIONS.map((opt) => (
+                    <button
+                      key={opt}
+                      type="button"
+                      onClick={() => update('gender', opt)}
+                      className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border transition-all focus-ring ${
+                        form.gender === opt
+                          ? 'bg-leaf-light/20 border-leaf text-leaf-dark dark:text-leaf-light'
+                          : 'border-moss-100 dark:border-white/10 text-ink/50 dark:text-white/40 hover:border-leaf/40'
+                      }`}
+                    >
+                      {opt}
+                      {form.gender === opt && <Check size={11} className="ml-0.5" />}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           ) : (
             <div className="grid sm:grid-cols-2 gap-y-6 gap-x-4">
               <DisplayField label="Age" value={`${form.age} years`} />
+              <DisplayField label="Gender" value={form.gender} />
               <DisplayField label="Height" value={`${form.height} cm`} />
               <DisplayField label="Weight" value={`${form.weight} kg`} />
               <DisplayField label="Daily Calorie Goal" value={`${form.calorieGoal} kcal`} />
@@ -263,23 +288,10 @@ export default function Profile() {
           </p>
           
           {isEditing ? (
-            <div className="flex flex-wrap gap-2">
-              {ALLERGY_OPTIONS.map((opt) => (
-                <button
-                  key={opt}
-                  type="button"
-                  onClick={() => toggleArrayItem('allergies', opt)}
-                  className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border transition-all focus-ring ${
-                    form.allergies?.includes(opt)
-                      ? 'bg-clay/10 border-clay text-clay'
-                      : 'border-moss-100 dark:border-white/10 text-ink/50 dark:text-white/40 hover:border-clay/40'
-                  }`}
-                >
-                  {opt}
-                  {form.allergies?.includes(opt) && <Check size={11} className="ml-0.5" />}
-                </button>
-              ))}
-            </div>
+            <AllergySelector 
+              selectedAllergies={form.allergies || []} 
+              onChange={(newAllergies) => update('allergies', newAllergies)} 
+            />
           ) : (
             <div className="flex flex-wrap gap-2">
               {form.allergies?.length > 0 ? form.allergies.map(opt => (

@@ -1,146 +1,144 @@
-const fs = require('fs');
-const zlib = require('zlib');
-const csv = require('csv-parser');
+const fs = require("fs");
+const zlib = require("zlib");
+const csv = require("csv-parser");
 
-const INPUT = './products_actual.tsv';
-const OUTPUT = './products_final.csv';
+// Dataset file is inside the backend folder
+const INPUT_FILE = "./en.openproductsfacts.org.products.csv";
+// Output file
+const OUTPUT_FILE = "./indian-packaged-food-products.json";
 
-let total = 0;
-let saved = 0;
-let skipped = 0;
-let duplicate = 0;
+// Number of products required
+const MAX_PRODUCTS = 1000;
 
-const seenBarcodes = new Set();
+const products = [];
+const usedBarcodes = new Set();
 
-const output = fs.createWriteStream(OUTPUT, {
-  encoding: 'utf8'
-});
+console.log("Starting Indian packaged food dataset cleaning...");
+console.log("Target:", MAX_PRODUCTS, "products");
 
-output.write(
-  [
-    'barcode',
-    'product_name',
-    'brand',
-    'categories',
-    'ingredients',
-    'allergens',
-    'quantity',
-    'countries',
-    'image_url',
-    'image_small_url',
-    'image_ingredients_url',
-    'image_nutrition_url',
-    'energy_kcal_100g',
-    'fat_100g',
-    'saturated_fat_100g',
-    'carbohydrates_100g',
-    'sugars_100g',
-    'fiber_100g',
-    'proteins_100g',
-    'salt_100g',
-    'sodium_100g',
-    'vitamin_c_100g',
-    'calcium_100g',
-    'iron_100g'
-  ].join(',') + '\n'
-);
+const input = fs.createReadStream(INPUT_FILE);
 
-function clean(value) {
-  if (value === undefined || value === null) return '';
-
-  return String(value)
-    .replace(/\r?\n|\r/g, ' ')
-    .replace(/"/g, '""')
-    .trim();
-}
-
-function csvValue(value) {
-  return `"${clean(value)}"`;
-}
-fs.createReadStream(INPUT)
+input
   .pipe(zlib.createGunzip())
   .pipe(
     csv({
-      separator: '\t'
+      separator: "\t",
+      strict: false,
     })
   )
-  .on('data', (row) => {
-    total++;
+  .on("data", (row) => {
+    if (products.length >= MAX_PRODUCTS) return;
 
-    const barcode = String(row.code || '').trim();
-    const productName = String(row.product_name || '').trim();
+    const barcode = row.code?.trim();
+    const productName = row.product_name?.trim();
+    const countries = row.countries?.toLowerCase() || "";
 
-    if (!barcode || !productName) {
-      skipped++;
-      return;
-    }
+    // Accept products marked as India
+    // OR products with Indian GS1 barcode prefix 890
+    const isIndianProduct =
+      countries.includes("india") ||
+      barcode?.startsWith("890");
 
-    if (seenBarcodes.has(barcode)) {
-      duplicate++;
-      return;
-    }
+    if (!isIndianProduct) return;
 
-    seenBarcodes.add(barcode);
+    // Validate barcode
+    if (!barcode || barcode.length < 8) return;
 
-    const cleaned = [
+    // Validate product name
+    if (!productName || productName.length < 2) return;
+
+    // Avoid duplicate products
+    if (usedBarcodes.has(barcode)) return;
+
+    const brands = row.brands?.trim() || "";
+    const categories = row.categories?.trim() || "";
+
+    // Nutrition information
+    const calories =
+      parseFloat(row["energy-kcal_100g"]) ||
+      parseFloat(row["energy-kcal"]) ||
+      0;
+
+    const protein =
+      parseFloat(row["proteins_100g"]) || 0;
+
+    const carbs =
+      parseFloat(row["carbohydrates_100g"]) || 0;
+
+    const fat =
+      parseFloat(row["fat_100g"]) || 0;
+
+    const sugar =
+      parseFloat(row["sugars_100g"]) || 0;
+
+    const fiber =
+      parseFloat(row["fiber_100g"]) || 0;
+
+    const ingredients =
+      row.ingredients_text?.trim() || "";
+
+    const allergens =
+      row.allergens?.trim() ||
+      row.allergens_tags?.trim() ||
+      "";
+
+    const image =
+      row.image_url?.trim() ||
+      row.image_front_url?.trim() ||
+      "";
+
+    // Simple health score calculation
+    let healthScore = 70;
+
+    if (sugar > 15) healthScore -= 15;
+    if (sugar > 30) healthScore -= 10;
+    if (fat > 20) healthScore -= 10;
+    if (fiber >= 3) healthScore += 5;
+    if (protein >= 8) healthScore += 5;
+
+    healthScore = Math.max(0, Math.min(100, healthScore));
+
+    const product = {
       barcode,
-      productName,
-      row.brands || '',
-      row.categories_en || row.categories || '',
-      row.ingredients_text || '',
-      row.allergens || '',
-      row.quantity || '',
-      row.countries_en || row.countries || '',
+      name: productName,
+      brand: brands,
+      category: categories,
 
-      row.image_url || '',
-      row.image_small_url || '',
-      row.image_ingredients_url || '',
-      row.image_nutrition_url || '',
+      nutrition: {
+        calories,
+        protein,
+        carbs,
+        fat,
+        sugar,
+        fiber,
+      },
 
-      row['energy-kcal_100g'] || '',
-      row['fat_100g'] || '',
-      row['saturated-fat_100g'] || '',
-      row['carbohydrates_100g'] || '',
-      row['sugars_100g'] || '',
-      row['fiber_100g'] || '',
-      row['proteins_100g'] || '',
-      row['salt_100g'] || '',
-      row['sodium_100g'] || '',
+      ingredients,
+      allergens,
+      image,
+      healthScore,
+      country: "India",
+    };
 
-      row['vitamin-c_100g'] || '',
-      row['calcium_100g'] || '',
-      row['iron_100g'] || ''
-    ];
+    products.push(product);
+    usedBarcodes.add(barcode);
 
-    output.write(
-      cleaned.map(csvValue).join(',') + '\n'
-    );
-
-    saved++;
-
-    if (saved % 10000 === 0) {
+    if (products.length % 100 === 0) {
       console.log(
-        `Processed: ${total} | Saved: ${saved} | Skipped: ${skipped} | Duplicate: ${duplicate}`
+        `Collected ${products.length}/${MAX_PRODUCTS} products`
       );
     }
   })
-  .on('end', () => {
-    output.end(() => {
-      console.log('');
-      console.log('======================================');
-      console.log(' CLEANING COMPLETED');
-      console.log('======================================');
-      console.log(`Total rows       : ${total}`);
-      console.log(`Saved rows       : ${saved}`);
-      console.log(`Skipped rows     : ${skipped}`);
-      console.log(`Duplicate rows   : ${duplicate}`);
-      console.log(`Unique barcodes  : ${seenBarcodes.size}`);
-      console.log(`Output file      : ${OUTPUT}`);
-      console.log('======================================');
-    });
+  .on("end", () => {
+    fs.writeFileSync(
+      OUTPUT_FILE,
+      JSON.stringify(products, null, 2)
+    );
+
+    console.log("\nDataset created successfully!");
+    console.log(`Total products: ${products.length}`);
+    console.log(`Saved to: ${OUTPUT_FILE}`);
   })
-  .on('error', (err) => {
-    console.error('');
-    console.error('❌ Cleaning failed:', err.message);
-    output.end();
+  .on("error", (error) => {
+    console.error("Error:", error);
   });

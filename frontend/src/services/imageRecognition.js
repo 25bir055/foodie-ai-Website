@@ -147,6 +147,102 @@ function parseFastJson(text) {
 }
 
 
+async function parseOcrText(rawText, dataUrl, engineName = 'Local Tesseract OCR') {
+  const text = rawText.toLowerCase()
+  
+  // Regex to extract numbers after keywords
+  const extractNum = (keyword) => {
+    const regex = new RegExp(`${keyword}[^0-9]*([0-9]+\\.?[0-9]*)`, 'i')
+    const match = text.match(regex)
+    return match ? parseFloat(match[1]) : 0
+  }
+
+  const calories = extractNum('calories|energy') || 0
+  const protein = extractNum('protein') || 0
+  const carbs = extractNum('carbohydrate|carbs') || 0
+  const sugar = extractNum('sugar') || 0
+  const fat = extractNum('total fat|fat') || 0
+  const saturatedFat = extractNum('saturated fat|sat fat') || 0
+  const fiber = extractNum('fiber|dietary fiber') || 0
+  const sodium = extractNum('sodium') || 0
+
+  const healthScore = calculateHealthScore({ calories, sugar, saturatedFat, sodium, protein, fiber })
+  const barcode = `ocr_${Date.now()}`
+
+  // Check if we actually found any meaningful numbers
+  const hasData = (calories + protein + carbs + sugar + fat + sodium) > 0
+  if (!hasData) {
+    // FRONT LABEL FALLBACK:
+    const cleanText = text.replace(/[^a-zA-Z\s]/g, ' ').replace(/\s+/g, ' ').trim()
+    const words = cleanText.split(' ').filter(w => w.length > 2) // keep words > 2 chars
+    const searchKeywords = words.slice(0, 4).join(' ')
+    
+    if (searchKeywords.length > 3) {
+      console.log(`🔍 OCR found no numbers. Searching Foodie AI DB for Front Label Product: "${searchKeywords}"`)
+      const localResults = await fetchSearchProducts(searchKeywords)
+      if (localResults && localResults.length > 0) {
+         return {
+           ...localResults[0],
+           imageUrl: dataUrl,
+           insight: `Identified product from front label text (Foodie AI Database).`,
+           source: 'Foodie AI Database'
+         }
+      }
+
+      console.log(`🔍 Not in Foodie DB. Searching USDA API for: "${searchKeywords}"`)
+      const usdaResults = await searchUsdaFood(searchKeywords)
+      if (usdaResults && usdaResults.length > 0) {
+         return {
+           ...usdaResults[0],
+           imageUrl: dataUrl,
+           insight: `Identified product from front label text (USDA).`,
+           source: 'Front Label Recognition'
+         }
+      }
+    }
+
+    throw new Error("Could not extract any clear nutrition numbers or product name. Please scan the Nutrition Facts label clearly.")
+  }
+
+  return {
+    id: `p_${barcode}`,
+    barcode,
+    name: 'Scanned Nutrition Label',
+    brand: 'Foodie AI OCR',
+    category: 'Scanned Label',
+    price: 0,
+    healthScore,
+    nutriScore: healthScore >= 80 ? 'a' : healthScore >= 60 ? 'b' : healthScore >= 45 ? 'c' : 'd',
+    calories, protein, carbs, sugar, fat, saturatedFat, fiber, sodium,
+    ingredients: [`Extracted from photo via ${engineName}`],
+    ingredientList: [`Extracted from photo via ${engineName}`],
+    allergens: [],
+    concerningIngredients: sugar > 18 ? ['High Added Sugar'] : sodium > 500 ? ['High Sodium'] : [],
+    tags: [`${engineName} Scan`],
+    insight: `Securely extracted ${calories} kcal and ${protein}g protein directly on your device.`,
+    imageUrl: dataUrl,
+    image: '📝',
+    source: engineName
+  }
+}
+
+async function localPaddleOcrExtractor(imageFile) {
+  const formData = new FormData()
+  formData.append('image', imageFile)
+
+  const baseUrl = getApiBaseUrl()
+  const res = await fetch(`${baseUrl}/ocr/paddle`, {
+    method: 'POST',
+    body: formData
+  })
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}))
+    throw new Error(errorData.error || 'PaddleOCR server error')
+  }
+  const data = await res.json()
+  return data.text // Returns combined string
+}
+
 async function localOcrNutritionExtractor(imageFile, dataUrl) {
   console.log('🔍 Running Local OCR Vision Engine (Tesseract.js)...')
   
@@ -155,88 +251,9 @@ async function localOcrNutritionExtractor(imageFile, dataUrl) {
       logger: m => console.log('OCR Progress:', m.status, Math.round(m.progress * 100) + '%')
     })
     
-    const text = result.data.text.toLowerCase()
-    console.log('📄 OCR Raw Text:', text)
-
-    // Regex to extract numbers after keywords
-    const extractNum = (keyword) => {
-      const regex = new RegExp(`${keyword}[^0-9]*([0-9]+\\.?[0-9]*)`, 'i')
-      const match = text.match(regex)
-      return match ? parseFloat(match[1]) : 0
-    }
-
-    const calories = extractNum('calories|energy') || 0
-    const protein = extractNum('protein') || 0
-    const carbs = extractNum('carbohydrate|carbs') || 0
-    const sugar = extractNum('sugar') || 0
-    const fat = extractNum('total fat|fat') || 0
-    const saturatedFat = extractNum('saturated fat|sat fat') || 0
-    const fiber = extractNum('fiber|dietary fiber') || 0
-    const sodium = extractNum('sodium') || 0
-
-    const healthScore = calculateHealthScore({ calories, sugar, saturatedFat, sodium, protein, fiber })
-    const barcode = `ocr_${Date.now()}`
-
-    // Check if we actually found any meaningful numbers
-    const hasData = (calories + protein + carbs + sugar + fat + sodium) > 0
-    if (!hasData) {
-      // FRONT LABEL FALLBACK:
-      // We couldn't find nutrition numbers, which means the user probably scanned the FRONT of the product.
-      // Let's clean the OCR text to extract the brand/product name.
-      const cleanText = text.replace(/[^a-zA-Z\s]/g, ' ').replace(/\s+/g, ' ').trim()
-      const words = cleanText.split(' ').filter(w => w.length > 2) // keep words > 2 chars
-      const searchKeywords = words.slice(0, 4).join(' ')
-      
-      if (searchKeywords.length > 3) {
-        console.log(`🔍 OCR found no numbers. Searching Foodie AI DB for Front Label Product: "${searchKeywords}"`)
-        const localResults = await fetchSearchProducts(searchKeywords)
-        if (localResults && localResults.length > 0) {
-           return {
-             ...localResults[0],
-             imageUrl: dataUrl,
-             insight: `Identified product from front label text (Foodie AI Database).`,
-             source: 'Foodie AI Database'
-           }
-        }
-
-        console.log(`🔍 Not in Foodie DB. Searching USDA API for: "${searchKeywords}"`)
-        const usdaResults = await searchUsdaFood(searchKeywords)
-        if (usdaResults && usdaResults.length > 0) {
-           return {
-             ...usdaResults[0],
-             imageUrl: dataUrl,
-             insight: `Identified product from front label text (USDA).`,
-             source: 'Front Label Recognition'
-           }
-        }
-      }
-
-      throw new Error("Could not extract any clear nutrition numbers or product name. Please scan the Nutrition Facts label clearly.")
-    }
-
-    return {
-      id: `p_${barcode}`,
-      barcode,
-      name: 'Scanned Nutrition Label',
-      brand: 'Foodie AI OCR',
-      category: 'Scanned Label',
-      price: 0,
-      healthScore,
-      nutriScore: healthScore >= 80 ? 'a' : healthScore >= 60 ? 'b' : healthScore >= 45 ? 'c' : 'd',
-      calories, protein, carbs, sugar, fat, saturatedFat, fiber, sodium,
-      ingredients: ['Extracted from photo via Local OCR'],
-      ingredientList: ['Extracted from photo via Local OCR'],
-      allergens: [],
-      concerningIngredients: sugar > 18 ? ['High Added Sugar'] : sodium > 500 ? ['High Sodium'] : [],
-      tags: ['Local OCR Scan'],
-      insight: `Securely extracted ${calories} kcal and ${protein}g protein directly on your device.`,
-      imageUrl: dataUrl,
-      image: '📝',
-      source: 'Local Tesseract OCR'
-    }
+    return await parseOcrText(result.data.text, dataUrl, 'Local Tesseract OCR')
   } catch (err) {
     console.error('OCR Engine Error:', err)
-    // If it's our custom error, throw it directly
     if (err.message && err.message.includes('Could not extract')) {
       throw err
     }
@@ -251,14 +268,15 @@ async function localOcrNutritionExtractor(imageFile, dataUrl) {
  * 3. Official USDA FoodData Central API (if USDA Key is available)
  * 4. Smart Vision Engine (Dynamic visual hashing fallback)
  */
-export async function analyzeNutritionImage(imageFile) {
+export async function analyzeNutritionImage(imageFile, userProfile = null) {
   const { base64Data, dataUrl, mimeType } = await compressAndResizeImage(imageFile, 1000, 1000, 0.82)
 
   const geminiKey = getGeminiApiKey()
   const usdaKey = getUsdaApiKey()
+  const USE_ONLY_OCR = true
 
   // Engine 2: Gemini Vision AI
-  if (geminiKey) {
+  if (geminiKey && !USE_ONLY_OCR) {
     if (geminiKey === 'TEST_MODE_ACTIVATE') {
       console.log('🧪 Running Gemini in TEST MODE...')
       await new Promise(r => setTimeout(r, 1500))
@@ -286,6 +304,20 @@ export async function analyzeNutritionImage(imageFile) {
 
     try {
       console.log('🧠 Running Google Gemini Vision AI...')
+      
+      let userContext = ''
+      if (userProfile) {
+        userContext = `
+USER PROFILE CONTEXT:
+- Dietary Preferences: ${userProfile.dietaryPreferences?.join(', ') || 'None'}
+- Allergies: ${userProfile.allergies?.join(', ') || 'None'}
+- Health Goals: ${userProfile.goals?.join(', ') || 'None'}
+
+CRITICAL INSTRUCTION:
+Check the ingredients against the User's Allergies. If an allergen is found, provide a CLEAR warning in "allergenWarning" AND recommend a specific alternative brand/product that is allergen-free in "recommendation".
+If NO allergen is found, but the product is unhealthy (e.g. high sugar, high fat), recommend a healthier alternative in "recommendation". If the product is perfectly healthy, recommend a complimentary pairing.`
+      }
+
       const prompt = `You are a food scientist and nutritionist for Foodie AI.
 Analyze this food image and output ONLY a valid JSON object matching this schema:
 {
@@ -297,9 +329,12 @@ Analyze this food image and output ONLY a valid JSON object matching this schema
   "ingredients": ["ingredient 1", "ingredient 2"],
   "allergens": ["Milk, Wheat, Peanuts if detected"],
   "concerningIngredients": ["Additives if detected"],
+  "allergenWarning": "String warning if user allergies match ingredients, else null",
+  "recommendation": "String recommending a safer/healthier alternative brand or product based on context",
   "healthScore": 75,
   "insight": "1-sentence nutritionist summary."
-}`
+}
+${userContext}`
 
       const genAI = new GoogleGenerativeAI(geminiKey)
       const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' })
@@ -334,6 +369,8 @@ Analyze this food image and output ONLY a valid JSON object matching this schema
           concerningIngredients: Array.isArray(parsed.concerningIngredients) ? parsed.concerningIngredients : [],
           tags: ['Scanned', healthScore >= 70 ? 'Nutritious' : 'Standard'],
           insight: parsed.insight || `Gemini Vision analyzed product (${calories} kcal).`,
+          allergenWarning: parsed.allergenWarning || null,
+          recommendation: parsed.recommendation || null,
           imageUrl: dataUrl,
           image: '🥗',
           source: 'Gemini Vision AI'
@@ -349,6 +386,20 @@ Analyze this food image and output ONLY a valid JSON object matching this schema
 
 
 
-  // Engine 4: Local OCR Vision Fallback (No API Keys needed)
+  // Try PaddleOCR Server first
+  if (!geminiKey || USE_ONLY_OCR) {
+    try {
+      console.log('🔍 Attempting local PaddleOCR Server Engine...')
+      const rawText = await localPaddleOcrExtractor(imageFile)
+      if (rawText) {
+        console.log('📄 PaddleOCR Raw Text:', rawText)
+        return await parseOcrText(rawText, dataUrl, 'PaddleOCR Local Engine')
+      }
+    } catch (err) {
+      console.warn('PaddleOCR server fallback failed:', err.message)
+    }
+  }
+
+  // Tesseract.js Fallback
   return await localOcrNutritionExtractor(imageFile, dataUrl)
 }

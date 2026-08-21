@@ -100,6 +100,33 @@ export default function Login() {
     }
   }
 
+  const handleGuestSignIn = async () => {
+    setError('')
+    setLoading(true)
+    try {
+      let loggedUser = null
+      try {
+        loggedUser = await loginWithEmail('demo@foodieai.com', 'demo1234')
+      } catch (loginErr) {
+        console.log('Demo account not found, creating it automatically...')
+        loggedUser = await signupWithEmail('demo@foodieai.com', 'demo1234', 'Guest Explorer')
+      }
+
+      if (loggedUser) {
+        setUser(loggedUser)
+        if (loggedUser.profile) {
+          setProfile(loggedUser.profile)
+        }
+        navigate('/dashboard')
+      }
+    } catch (err) {
+      console.error('Demo auth failed:', err)
+      setError('Could not start demo session. Please try regular login.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <>
       <AnimatedBackground />
@@ -204,13 +231,28 @@ export default function Login() {
         <ScrollReveal delay={0.1}>
           <div className="w-full max-w-sm relative">
           {/* Mobile logo */}
-          <div className="lg:hidden flex items-center gap-3 mb-10 justify-center">
+          <div className="lg:hidden flex items-center gap-3 mb-6 justify-center">
             <div className="h-10 w-10 rounded-xl bg-moss-700 flex items-center justify-center">
               <Leaf size={19} className="text-leaf-light" />
             </div>
             <div>
               <p className="font-display font-semibold text-lg text-moss-700 dark:text-white">Foodie AI</p>
               <p className="text-[10px] uppercase tracking-widest text-ink/40 dark:text-white/30">Nutrition Assistant</p>
+            </div>
+          </div>
+
+          {/* Mobile onboarding/features helper */}
+          <div className="lg:hidden mb-6 bg-moss-50 dark:bg-white/5 border border-moss-100/50 dark:border-white/5 rounded-2xl p-4 flex flex-col gap-2.5">
+            <p className="text-[10px] font-bold text-moss-700 dark:text-leaf-light uppercase tracking-wider">How it works</p>
+            <div className="grid grid-cols-3 gap-2">
+              {FEATURES.map(({ icon: Icon, label }) => (
+                <div key={label} className="flex flex-col items-center text-center p-2 rounded-xl bg-white dark:bg-white/5 border border-moss-100 dark:border-white/5 shadow-xs">
+                  <div className="h-7 w-7 rounded-lg bg-leaf-light/15 flex items-center justify-center mb-1">
+                    <Icon size={14} className="text-leaf-dark dark:text-leaf-light" />
+                  </div>
+                  <span className="text-[9px] font-semibold text-ink/70 dark:text-white/70 leading-tight">{label}</span>
+                </div>
+              ))}
             </div>
           </div>
 
@@ -344,6 +386,15 @@ export default function Login() {
                 </svg>
               )}
               Continue with Google
+            </button>
+
+            <button
+              type="button"
+              onClick={handleGuestSignIn}
+              disabled={loading || googleLoading}
+              className="flex items-center justify-center gap-2.5 bg-mint-tint dark:bg-white/5 border border-moss-100 dark:border-white/10 rounded-xl py-3 text-sm font-semibold text-leaf-dark dark:text-leaf-light hover:bg-leaf-light/10 transition-colors focus-ring disabled:opacity-50"
+            >
+              🚀 Explore as Guest (Try Demo)
             </button>
           </form>
 

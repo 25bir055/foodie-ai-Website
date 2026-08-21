@@ -221,12 +221,12 @@ export default function Scanner() {
           if (navigator.vibrate) navigator.vibrate([500, 200, 500, 200, 1000]) // Danger haptics
           if (voiceEnabled && window.speechSynthesis) {
             window.speechSynthesis.cancel()
-            const msg = new SpeechSynthesisUtterance(`Warning! This product contains ${allergensFound.join(' and ')}. Do not consume!`)
+            const msg = new SpeechSynthesisUtterance(`Warning! This product contains ${allergensFound.join(' and ')}.`)
             msg.rate = 1.05
             window.speechSynthesis.speak(msg)
           }
-          setDangerAlert({ product, allergens: allergensFound })
-          return // Stop navigation
+          // We no longer block navigation. We attach it to the product object so ProductDetails can display it.
+          product.allergenWarning = `⚠️ WARNING: This product contains allergens: ${allergensFound.join(', ')}.`
         }
 
         // Vera Maari features trigger
@@ -330,24 +330,25 @@ export default function Scanner() {
 
       setAnalysisStep('Gemini Vision reading nutrition facts in real-time...')
       
-      const result = await analyzeNutritionImage(file)
+      const result = await analyzeNutritionImage(file, profile)
 
       setExtractedProduct(result)
       setEditedName(result.name)
       setEditedBrand(result.brand)
       setSuccess(`✅ Successfully analyzed "${result.name}"!`)
+      
       const allergensFound = checkAllergens(result)
-      if (allergensFound) {
+      if (allergensFound || result.allergenWarning) {
         if (navigator.vibrate) navigator.vibrate([500, 200, 500, 200, 1000])
         if (voiceEnabled && window.speechSynthesis) {
           window.speechSynthesis.cancel()
-          const msg = new SpeechSynthesisUtterance(`Warning! This product contains ${allergensFound.join(' and ')}. Do not consume!`)
+          const msg = new SpeechSynthesisUtterance(`Warning! This product contains allergens.`)
           msg.rate = 1.05
           window.speechSynthesis.speak(msg)
         }
-        setExtractedProduct(result)
-        setDangerAlert({ product: result, allergens: allergensFound })
-        return
+        if (!result.allergenWarning && allergensFound) {
+          result.allergenWarning = `⚠️ WARNING: This product contains allergens: ${allergensFound.join(', ')}.`
+        }
       }
       
       // Vera Maari features trigger

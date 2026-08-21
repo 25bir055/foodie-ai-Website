@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { PRODUCTS } from './data/mockData'
-import { logoutUser, getCurrentUser, getStoredUser, updateUserProfile } from './services/auth'
+import { logoutUser, getCurrentUser, getStoredUser, updateUserProfile, handleGoogleRedirect } from './services/auth'
 import { getStoredScanHistory, saveScanHistory } from './hooks/useScanHistory'
 import { saveScanRecord, fetchAllProducts } from './services/api'
 
@@ -131,11 +131,13 @@ export function AppProvider({ children }) {
     loadProducts()
   }, [])
 
-  // Load user session and user-specific data from MongoDB backend
   useEffect(() => {
     async function initAuth() {
       try {
-        const currentUser = await getCurrentUser()
+        let currentUser = await handleGoogleRedirect()
+        if (!currentUser) {
+          currentUser = await getCurrentUser()
+        }
         if (currentUser) {
           setUser(currentUser)
           const key = currentUser.uid || currentUser._id || currentUser.email

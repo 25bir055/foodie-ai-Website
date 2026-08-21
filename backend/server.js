@@ -7,6 +7,8 @@ const authRouter = require('./routes/auth')
 const productsRouter = require('./routes/products')
 const scansRouter = require('./routes/scans')
 const adminRouter = require('./routes/admin')
+const ocrRouter = require('./routes/ocr')
+const mlRouter = require('./routes/ml')
 
 const app = express()
 const PORT = process.env.PORT || 5000
@@ -43,6 +45,8 @@ app.use('/api/auth', authRouter)
 app.use('/api/products', productsRouter)
 app.use('/api/scans', scansRouter)
 app.use('/api/admin', adminRouter)
+app.use('/api/ocr', ocrRouter)
+app.use('/api/ml', mlRouter)
 
 app.listen(PORT, () => {
   console.log(`🚀 Foodie AI Backend Server listening on http://localhost:${PORT}`)

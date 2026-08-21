@@ -3,13 +3,13 @@ import { useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft, Heart, ShoppingCart, GitCompareArrows, Sparkles,
   TriangleAlert, CheckCircle2, Info, Star, TrendingUp, Loader2,
-  WifiOff, RefreshCw
+  WifiOff, RefreshCw, AlertCircle
 } from 'lucide-react'
 import AppShell from '../components/AppShell.jsx'
 import HealthScoreRing from '../components/HealthScoreRing.jsx'
 import ProductCard from '../components/ProductCard.jsx'
 import { scoreLabel } from '../data/mockData'
-import { fetchProductById, fetchAllProducts, saveScanRecord } from '../services/api'
+import { fetchProductById, fetchAllProducts, saveScanRecord, fetchPersonalizedHealthScore } from '../services/api'
 import { askGeminiAI } from '../services/gemini'
 import { useApp } from '../store.jsx'
 
@@ -74,7 +74,7 @@ async function checkInternet() {
 export default function ProductDetails() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { user, favorites, toggleFavorite, addToShoppingList, addScanToHistory } = useApp()
+  const { user, profile, favorites, toggleFavorite, addToShoppingList, addScanToHistory } = useApp()
 
   const [product,      setProduct]      = useState(null)
   const [loading,      setLoading]      = useState(true)
@@ -103,13 +103,29 @@ export default function ProductDetails() {
 
       try {
         const data = await fetchProductById(id)
+        if (!data) throw new Error('Product not found')
+
+        let finalData = { ...data }
+        
+        // Fetch personalized health score
+        if (profile) {
+          const mlResult = await fetchPersonalizedHealthScore(data, profile)
+          if (mlResult && mlResult.predictedHealthScore !== undefined) {
+            finalData.healthScore = mlResult.predictedHealthScore
+            // Set insights from ML if available, otherwise fallback
+            if (mlResult.insights && mlResult.insights.length > 0) {
+              finalData.personalizedInsights = mlResult.insights
+            }
+          }
+        }
+
         if (cancelled) return
-        setProduct(data)
+        setProduct(finalData)
         setLoading(false)
 
-        if (data) {
+        if (finalData) {
           // Record scan in local history
-          addScanToHistory(data)
+          addScanToHistory(finalData)
 
           // Save scan to Firestore scans collection
           saveScanRecord({
@@ -249,6 +265,34 @@ export default function ProductDetails() {
       >
         <ArrowLeft size={16} /> Back
       </button>
+
+      {product.allergenWarning && (
+        <div className="mb-5 p-4 rounded-2xl bg-clay/10 border border-clay/30 flex items-start gap-3 fade-in-up">
+          <div className="p-2 rounded-xl bg-clay/20 shrink-0">
+            <AlertCircle size={20} className="text-clay" />
+          </div>
+          <div>
+            <h3 className="text-clay font-bold text-sm uppercase tracking-wide">Allergy Warning</h3>
+            <p className="text-sm text-clay/90 mt-0.5">{product.allergenWarning}</p>
+          </div>
+        </div>
+      )}
+
+      {product.personalizedInsights && product.personalizedInsights.length > 0 && (
+        <div className="mb-6 p-5 rounded-2xl bg-gradient-to-r from-leaf-light/20 to-transparent border border-leaf-light/30 flex items-start gap-4 fade-in-up relative overflow-hidden">
+          <div className="p-2.5 rounded-xl bg-leaf-light/30 shrink-0">
+            <Sparkles size={22} className="text-leaf-dark dark:text-leaf-light" />
+          </div>
+          <div className="relative z-10">
+            <h3 className="text-leaf-dark dark:text-leaf-light font-display font-semibold text-base mb-1">Personalized For You</h3>
+            <ul className="text-sm text-ink/80 dark:text-white/80 leading-relaxed font-medium space-y-1">
+              {product.personalizedInsights.map((insight, idx) => (
+                <li key={idx}>{insight}</li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
 
       {/* ── Product Summary Card ─────────────────────────────── */}
       <div className="glass-panel p-5 sm:p-7 fade-in-up">

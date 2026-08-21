@@ -1,5 +1,5 @@
 import { auth, googleProvider } from '../firebase'
-import { signInWithPopup } from 'firebase/auth'
+import { signInWithPopup, signInWithRedirect, getRedirectResult } from 'firebase/auth'
 
 import { getApiBaseUrl } from './api'
 
@@ -70,27 +70,13 @@ export async function loginWithGoogle() {
   try {
     // Opens official Firebase Google account selection popup
     const result = await signInWithPopup(auth, googleProvider)
-    const firebaseUser = result.user
-
-    const email = firebaseUser.email
-    const displayName = firebaseUser.displayName || email.split('@')[0]
-    const photoUrl = firebaseUser.photoURL || ''
-
-    // Sync / create in MongoDB backend
-    const res = await fetch(`${API_BASE_URL}/auth/google`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, displayName, photoUrl })
-    })
-
-    const data = await res.json()
-    if (!res.ok) {
-      throw new Error(data.error || 'Google Sign-In server sync failed.')
-    }
-
-    setAuthSession(data.token, data.user)
-    return data.user
+    return await syncGoogleUserWithBackend(result.user)
   } catch (err) {
+    if (err.code === 'auth/popup-blocked') {
+      console.warn('Popup blocked, falling back to Google Sign-In Redirect...')
+      await signInWithRedirect(auth, googleProvider)
+      return null
+    }
     if (err.code === 'auth/unauthorized-domain') {
       const currentHost = typeof window !== 'undefined' ? window.location.hostname : 'domain'
       throw new Error(
@@ -99,6 +85,41 @@ export async function loginWithGoogle() {
     }
     throw err
   }
+}
+
+/** Helper to sync Google user with backend */
+async function syncGoogleUserWithBackend(firebaseUser) {
+  const email = firebaseUser.email
+  const displayName = firebaseUser.displayName || email.split('@')[0]
+  const photoUrl = firebaseUser.photoURL || ''
+
+  const res = await fetch(`${API_BASE_URL}/auth/google`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, displayName, photoUrl })
+  })
+
+  const data = await res.json()
+  if (!res.ok) {
+    throw new Error(data.error || 'Google Sign-In server sync failed.')
+  }
+
+  setAuthSession(data.token, data.user)
+  return data.user
+}
+
+/** Handle redirect result on startup if user came back from Google Sign-In redirect */
+export async function handleGoogleRedirect() {
+  try {
+    const result = await getRedirectResult(auth)
+    if (result && result.user) {
+      console.log('✅ Redirect Sign-In detected, syncing user...')
+      return await syncGoogleUserWithBackend(result.user)
+    }
+  } catch (err) {
+    console.error('Error handling Google redirect result:', err)
+  }
+  return null
 }
 
 /** Fetch Current User Profile from backend */

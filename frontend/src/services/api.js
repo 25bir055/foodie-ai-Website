@@ -117,7 +117,7 @@ function normalizeProduct(product) {
 // Get all products from MongoDB backend
 export async function fetchAllProducts() {
   try {
-    const res = await fetch(`${API_BASE_URL}/products?limit=200`)
+    const res = await fetch(`${API_BASE_URL}/products?limit=1000`)
     if (res.ok) {
       const products = await res.json()
       if (Array.isArray(products) && products.length > 0) {
@@ -272,5 +272,27 @@ export async function saveScanRecord({ userId, barcode, productName, healthScore
   } catch (err) {
     console.warn('Could not save scan record:', err)
     return false
+  }
+}
+
+// Fetch personalized health score
+export async function fetchPersonalizedHealthScore(product, userProfile) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/ml/predict-health`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        nutrition: product,
+        profile: userProfile
+      })
+    })
+    
+    if (res.ok) {
+      return await res.json()
+    }
+    return null
+  } catch (err) {
+    console.error('Failed to fetch personalized score:', err)
+    return null
   }
 }

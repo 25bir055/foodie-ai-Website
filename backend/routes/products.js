@@ -5,7 +5,7 @@ const Product = require('../models/Product')
 /** GET /api/products — Get all products from MongoDB or search */
 router.get('/', async (req, res) => {
   try {
-    const { search, limit = 200, category } = req.query
+    const { search, limit = 1000, category } = req.query
     let query = {}
 
     if (search && search.trim()) {
@@ -37,13 +37,103 @@ router.get('/', async (req, res) => {
 router.get('/barcode/:barcode', async (req, res) => {
   try {
     const barcode = req.params.barcode.trim()
-    const product = await Product.findOne({ barcode }).lean()
+    let product = await Product.findOne({ barcode }).lean()
 
     if (product) {
       return res.json({ ...product, id: product.id || product._id.toString() })
     }
 
-    return res.status(404).json({ error: 'Product not found in database' })
+    // Fallback: Fetch from Open Food Facts API
+    console.log(`🔍 Barcode ${barcode} not found in DB. Querying Open Food Facts...`)
+    try {
+      const response = await fetch(`https://world.openfoodfacts.org/api/v0/product/${barcode}.json`)
+      if (response.ok) {
+        const data = await response.json()
+        if (data.status === 1 && data.product) {
+          const offProduct = data.product
+          const customId = `p_${barcode}`
+
+          // Parse nutrients
+          const nutriments = offProduct.nutriments || {}
+          const calories = Math.round(nutriments['energy-kcal_100g'] || nutriments['energy-kcal'] || nutriments['energy-kcal_value'] || 0)
+          const fat = Number(nutriments.fat_100g || nutriments.fat || 0)
+          const saturatedFat = Number(nutriments['saturated-fat_100g'] || nutriments['saturated-fat'] || 0)
+          const carbohydrates = Number(nutriments.carbohydrates_100g || nutriments.carbohydrates || 0)
+          const sugar = Number(nutriments.sugars_100g || nutriments.sugars || 0)
+          const fiber = Number(nutriments.fiber_100g || nutriments.fiber || 0)
+          const protein = Number(nutriments.proteins_100g || nutriments.proteins || 0)
+          const salt = Number(nutriments.salt_100g || nutriments.salt || 0)
+          const sodium = Number(nutriments.sodium_100g || nutriments.sodium || 0)
+
+          // Calculate healthScore
+          let score = 50
+          if (calories > 200) score -= 10
+          if (sugar > 10) score -= 15
+          if (saturatedFat > 4) score -= 10
+          if (sodium > 0.4) score -= 10
+          if (protein >= 8) score += 15
+          if (fiber >= 3) score += 15
+          score = Math.max(10, Math.min(98, score))
+
+          const ingredients = offProduct.ingredients_text
+            ? offProduct.ingredients_text.split(',').map(i => i.trim()).filter(Boolean)
+            : []
+
+          const allergens = offProduct.allergens_tags
+            ? offProduct.allergens_tags.map(a => a.replace('en:', '').trim()).filter(Boolean)
+            : []
+
+          const concerningIngredients = offProduct.additives_tags
+            ? offProduct.additives_tags.map(a => a.replace('en:', '').trim()).filter(Boolean)
+            : []
+
+          const name = offProduct.product_name || offProduct.product_name_en || 'Imported Product'
+          const brand = offProduct.brands || 'Unknown'
+          const category = offProduct.categories ? offProduct.categories.split(',')[0].trim() : 'Food'
+
+          const newProduct = {
+            id: customId,
+            barcode,
+            name,
+            brand,
+            category,
+            price: 50,
+            healthScore: score,
+            nutriScore: score >= 80 ? 'a' : score >= 60 ? 'b' : score >= 45 ? 'c' : 'd',
+            nutriscoreGrade: score >= 80 ? 'a' : score >= 60 ? 'b' : score >= 45 ? 'c' : 'd',
+            nutriscore_grade: score >= 80 ? 'a' : score >= 60 ? 'b' : score >= 45 ? 'c' : 'd',
+            calories,
+            fat,
+            saturatedFat,
+            carbohydrates,
+            sugar,
+            fiber,
+            protein,
+            salt,
+            sodium: Math.round(sodium * 1000), // convert to mg
+            ingredients,
+            ingredientList: ingredients,
+            allergens,
+            concerningIngredients,
+            imageUrl: offProduct.image_url || offProduct.image_front_url || '',
+            image: '🥗',
+            product_name: name,
+            brands: brand,
+            categories: offProduct.categories || category,
+            servingSize: offProduct.serving_size || '100 g',
+            insight: `Successfully imported from Open Food Facts.`
+          }
+
+          // Save to database
+          const savedProduct = await Product.create(newProduct)
+          return res.json(savedProduct)
+        }
+      }
+    } catch (offErr) {
+      console.warn('Open Food Facts API Error:', offErr.message)
+    }
+
+    return res.status(404).json({ error: 'Product not found in database or Open Food Facts API' })
   } catch (err) {
     res.status(500).json({ error: err.message })
   }

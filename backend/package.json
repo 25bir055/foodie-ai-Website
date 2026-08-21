@@ -7,7 +7,10 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "seed": "node seed.js"
+    "seed": "node seed.js",
+    "fetch-data": "node fetch-indian-products.js",
+    "replace-db": "node replace-database.js",
+    "fresh-seed": "node fetch-indian-products.js && node replace-database.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
@@ -16,7 +19,9 @@
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.3",
+    "ml-random-forest": "^2.1.0",
     "mongoose": "^9.9.2",
+    "multer": "^2.2.0",
     "nodemailer": "^9.0.5"
   }
 }
