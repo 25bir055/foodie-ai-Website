@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Check, UserCircle2, Activity, Leaf, Edit2, X, Loader2, LogOut, Settings as SettingsIcon } from 'lucide-react'
+import { Check, UserCircle2, Activity, Leaf, Edit2, X, Loader2, LogOut, Settings as SettingsIcon, Users, ChevronRight, FileText, ShieldCheck } from 'lucide-react'
 import AppShell from '../components/AppShell.jsx'
 import { useApp } from '../store.jsx'
 import { updateUserProfile } from '../services/auth.js'
@@ -202,6 +202,56 @@ export default function Profile() {
         </div>
         <UserCircle2 size={24} className="text-ink/20 dark:text-white/20 shrink-0" />
       </div>
+
+      {/* 👨‍👩‍👧‍👦 Family & Settings Quick Access Banners */}
+      {!isEditing && (
+        <div className="grid sm:grid-cols-2 gap-3 mb-6">
+          {/* Family Profiles Card */}
+          <button
+            type="button"
+            onClick={() => navigate('/family')}
+            className="glass-panel p-4 rounded-2xl border border-leaf/30 bg-gradient-to-br from-leaf/10 to-moss-50/50 dark:from-leaf/15 dark:to-white/5 flex items-center justify-between text-left hover:scale-[1.01] active:scale-[0.99] transition-all shadow-soft group"
+          >
+            <div className="flex items-center gap-3">
+              <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-moss-700 to-leaf text-white flex items-center justify-center shrink-0 shadow-sm group-hover:scale-105 transition-transform">
+                <Users size={22} />
+              </div>
+              <div>
+                <h3 className="font-display text-sm font-bold text-ink dark:text-white flex items-center gap-1.5">
+                  <span>Family Health Profiles</span>
+                  <span className="text-[10px] bg-leaf text-white px-1.5 py-0.2 rounded-full font-bold">New</span>
+                </h3>
+                <p className="text-[11px] text-ink/60 dark:text-white/60 mt-0.5">
+                  Manage family allergies, diets & health safety
+                </p>
+              </div>
+            </div>
+            <ChevronRight size={18} className="text-leaf shrink-0 group-hover:translate-x-0.5 transition-transform" />
+          </button>
+
+          {/* Settings & Server Config Card */}
+          <button
+            type="button"
+            onClick={() => navigate('/settings')}
+            className="glass-panel p-4 rounded-2xl border border-moss-200 dark:border-white/10 bg-white/70 dark:bg-white/5 flex items-center justify-between text-left hover:scale-[1.01] active:scale-[0.99] transition-all shadow-soft group"
+          >
+            <div className="flex items-center gap-3">
+              <div className="h-12 w-12 rounded-xl bg-mint-tint dark:bg-white/10 text-moss-700 dark:text-leaf-light flex items-center justify-center shrink-0 shadow-sm group-hover:scale-105 transition-transform">
+                <SettingsIcon size={22} />
+              </div>
+              <div>
+                <h3 className="font-display text-sm font-bold text-ink dark:text-white">
+                  App & Server Settings
+                </h3>
+                <p className="text-[11px] text-ink/60 dark:text-white/60 mt-0.5">
+                  Configure API endpoint, dark mode & voice
+                </p>
+              </div>
+            </div>
+            <ChevronRight size={18} className="text-ink/30 dark:text-white/30 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+          </button>
+        </div>
+      )}
 
       <div className="flex items-center justify-between mb-5">
         <p className="text-sm text-ink/50 dark:text-white/40">
