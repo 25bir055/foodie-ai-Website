@@ -34,17 +34,19 @@ export async function analyzeBillWithAI(imageFile, userProfile = null, prescript
   } else {
     formData.append('image', imageFile)
     
-    // Run client-side Tesseract OCR on user's bill image
+    // Run client-side Tesseract OCR on user's bill image with timeout protection
     try {
       if (onProgress) onProgress('🔍 Reading text from receipt with OCR engine...')
-      const { data } = await Tesseract.recognize(imageFile, 'eng')
-      ocrText = data?.text || ''
+      const tesseractPromise = Tesseract.recognize(imageFile, 'eng')
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('OCR timeout')), 4000))
+      const res = await Promise.race([tesseractPromise, timeoutPromise])
+      ocrText = res?.data?.text || ''
       if (ocrText && ocrText.trim().length > 3) {
         console.log(`🧾 Client Tesseract extracted ${ocrText.length} characters from receipt.`)
         formData.append('rawText', ocrText)
       }
     } catch (ocrErr) {
-      console.warn('Tesseract client OCR skipped:', ocrErr.message)
+      console.warn('Client OCR bypassed, backend AI will analyze image directly:', ocrErr.message)
     }
   }
 
