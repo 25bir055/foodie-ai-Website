@@ -1,10 +1,11 @@
 import React, { useState } from 'react'
-import { Moon, Sun, Bell, Shield, LogOut, Palette, Globe, ChevronRight, User, Lock, Download, Trash2, Check, AlertCircle, Volume2 } from 'lucide-react'
+import { Moon, Sun, Bell, Shield, LogOut, Palette, Globe, ChevronRight, User, Lock, Download, Trash2, Check, AlertCircle, Volume2, Server, Wifi, X } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import AppShell from '../components/AppShell.jsx'
 import { useApp } from '../store.jsx'
 import { changeUserPassword, deleteUserAccount, updateUserProfile } from '../services/auth'
 import { useLanguage } from '../context/LanguageContext.jsx'
+import { getApiBaseUrl, setCustomApiBaseUrl } from '../services/api'
 
 function Toggle({ checked, id }) {
   return (
@@ -57,9 +58,34 @@ export default function Settings() {
   const [nameInput, setNameInput] = useState(userName)
   const [nameSaved, setNameSaved] = useState(false)
 
-  const [passModalOpen, setPassModalOpen] = useState(false)
-  const [newPassword, setNewPassword] = useState('')
-  const [passStatus, setPassStatus] = useState('')
+  const [serverModalOpen, setServerModalOpen] = useState(false)
+  const [serverUrlInput, setServerUrlInput] = useState(getApiBaseUrl())
+  const [serverTestStatus, setServerTestStatus] = useState(null)
+
+  const handleTestServer = async (url) => {
+    setServerTestStatus('testing')
+    try {
+      const cleanUrl = url.trim().replace(/\/+$/, '')
+      const res = await fetch(`${cleanUrl}/health`, { method: 'GET' })
+      if (res.ok) {
+        setServerTestStatus('ok')
+      } else {
+        setServerTestStatus('error')
+      }
+    } catch (e) {
+      setServerTestStatus('error')
+    }
+  }
+
+  const handleSaveServer = () => {
+    if (serverUrlInput && serverUrlInput.trim()) {
+      setCustomApiBaseUrl(serverUrlInput.trim())
+    } else {
+      setCustomApiBaseUrl(null)
+    }
+    setServerModalOpen(false)
+    window.location.reload()
+  }
 
   const saveName = async () => {
     try {
@@ -218,6 +244,21 @@ export default function Settings() {
           />
         </div>
 
+        {/* Server & API Connection */}
+        <div className="glass-panel overflow-hidden">
+          <p className="text-[11px] font-bold text-ink/40 dark:text-white/30 uppercase tracking-widest px-4 pt-4 pb-1">Server & API</p>
+          <SettingsRow
+            icon={Server}
+            title="Backend Server Connection"
+            desc="Configure live cloud API or local server endpoint"
+            onClick={() => {
+              setServerUrlInput(getApiBaseUrl())
+              setServerTestStatus(null)
+              setServerModalOpen(true)
+            }}
+          />
+        </div>
+
         {/* Version info */}
         <div className="glass-panel p-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -242,6 +283,123 @@ export default function Settings() {
           right={null}
         />
       </div>
+
+      {/* Server Configuration Modal */}
+      {serverModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#12211A] rounded-2xl w-full max-w-md p-6 shadow-xl border border-moss-100 dark:border-white/10">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-display font-semibold text-base text-ink dark:text-white flex items-center gap-2">
+                <Server size={18} className="text-leaf" />
+                Backend Server Endpoint
+              </h3>
+              <button
+                type="button"
+                onClick={() => setServerModalOpen(false)}
+                className="p-1 rounded-lg hover:bg-mint-tint dark:hover:bg-white/10 text-ink/40"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <p className="text-xs text-ink/70 dark:text-white/70 mb-3 leading-relaxed">
+              Connect via <strong>Live Cloud</strong> or <strong>Local Wi-Fi</strong>:
+            </p>
+
+            {/* Quick preset buttons */}
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              <button
+                type="button"
+                onClick={() => {
+                  const u = 'https://portion-handles-but-illustration.trycloudflare.com/api'
+                  setServerUrlInput(u)
+                  handleTestServer(u)
+                }}
+                className="text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-leaf/10 text-leaf-dark dark:text-leaf-light border border-leaf/20 hover:bg-leaf/20 transition-colors"
+              >
+                ⚡ Live Cloud (High Speed)
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const u = 'https://foodie-ai-website-0ghh.onrender.com/api'
+                  setServerUrlInput(u)
+                  handleTestServer(u)
+                }}
+                className="text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-moss-50 dark:bg-white/5 text-ink/60 dark:text-white/60 border border-moss-100 dark:border-white/10 hover:bg-mint-tint"
+              >
+                ☁️ Render Cloud
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const u = 'http://192.168.169.135:5000/api'
+                  setServerUrlInput(u)
+                  handleTestServer(u)
+                }}
+                className="text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-moss-50 dark:bg-white/5 text-ink/60 dark:text-white/60 border border-moss-100 dark:border-white/10 hover:bg-mint-tint"
+              >
+                📶 Local Wi-Fi
+              </button>
+            </div>
+
+            <label className="block mb-3">
+              <span className="text-[11px] font-semibold text-ink/50 dark:text-white/40 uppercase">Server API URL</span>
+              <input
+                type="text"
+                value={serverUrlInput}
+                onChange={(e) => {
+                  setServerUrlInput(e.target.value)
+                  setServerTestStatus(null)
+                }}
+                placeholder="https://portion-handles-but-illustration.trycloudflare.com/api"
+                className="input-base font-mono text-xs w-full mt-1"
+              />
+            </label>
+
+            {/* Test connection results */}
+            <div className="flex items-center justify-between mb-4">
+              <button
+                type="button"
+                onClick={() => handleTestServer(serverUrlInput)}
+                disabled={serverTestStatus === 'testing'}
+                className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-moss-100 dark:border-white/10 hover:bg-mint-tint dark:hover:bg-white/5 flex items-center gap-1.5 focus-ring"
+              >
+                <Wifi size={13} className="text-leaf" />
+                {serverTestStatus === 'testing' ? 'Testing...' : 'Test Connection'}
+              </button>
+
+              {serverTestStatus === 'ok' && (
+                <span className="text-xs font-bold text-leaf flex items-center gap-1">
+                  <Check size={14} /> Server Online (200 OK)
+                </span>
+              )}
+              {serverTestStatus === 'error' && (
+                <span className="text-xs font-bold text-clay flex items-center gap-1">
+                  <X size={14} /> Unreachable
+                </span>
+              )}
+            </div>
+
+            <div className="flex gap-2 justify-end pt-2 border-t border-moss-100 dark:border-white/10">
+              <button
+                type="button"
+                onClick={() => setServerModalOpen(false)}
+                className="btn-secondary text-xs px-3.5 py-2"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveServer}
+                className="btn-primary text-xs px-4 py-2"
+              >
+                Save & Apply
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Password Modal */}
       {passModalOpen && (
