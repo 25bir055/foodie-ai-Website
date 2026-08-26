@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis,
   Tooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell
@@ -8,6 +8,7 @@ import AppShell from '../components/AppShell.jsx'
 import HealthScoreRing from '../components/HealthScoreRing.jsx'
 import { WEEKLY_NUTRITION, MACROS_TODAY } from '../data/mockData'
 import { useApp } from '../store.jsx'
+import { useLanguage } from '../context/LanguageContext.jsx'
 
 const WATER_DATA = [
   { time: '8am', ml: 250 }, { time: '10am', ml: 200 }, { time: '12pm', ml: 350 },
@@ -50,15 +51,22 @@ const CustomTooltip = ({ active, payload, label }) => {
 
 export default function PersonalDashboard() {
   const { profile } = useApp()
+  const { t } = useLanguage()
+  const [waterIntake, setWaterIntake] = useState(1600)
+  const waterGoal = profile.waterGoal || 2500
+
+  const addWater = (amount) => {
+    setWaterIntake(prev => prev + amount)
+  }
 
   return (
-    <AppShell title="My Nutrition Dashboard">
+    <AppShell title={t('my_nutrition')}>
       {/* Stat cards */}
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6 stagger-children fade-in-up">
-        <StatCard icon={Flame}    label="Calories"       value="1,840" goal={`of ${profile.calorieGoal} kcal goal`}  color="#E3A23D" progress={(1840/profile.calorieGoal)*100} />
-        <StatCard icon={Beef}     label="Protein"        value="62g"   goal="of 90g target"                          color="#4CAE7A" progress={(62/90)*100} />
-        <StatCard icon={Candy}    label="Sugar"          value="38g"   goal="of 50g daily limit"                     color="#D9534F" progress={(38/50)*100} />
-        <StatCard icon={Droplets} label="Water"          value="1.6L"  goal="of 2.5L target"                        color="#3E7CB1" progress={(1.6/2.5)*100} />
+        <StatCard icon={Flame}    label={t('calories')}       value="1,840" goal={`of ${profile.calorieGoal || 2000} kcal goal`}  color="#E3A23D" progress={(1840/(profile.calorieGoal || 2000))*100} />
+        <StatCard icon={Beef}     label={t('protein')}        value="62g"   goal="of 90g target"                          color="#4CAE7A" progress={(62/90)*100} />
+        <StatCard icon={Candy}    label={t('sugar')}          value="38g"   goal="of 50g daily limit"                     color="#D9534F" progress={(38/50)*100} />
+        <StatCard icon={Droplets} label={t('water')}          value={`${(waterIntake / 1000).toFixed(1)}L`}  goal={`of ${(waterGoal / 1000).toFixed(1)}L target`} color="#3E7CB1" progress={(waterIntake/waterGoal)*100} />
       </div>
 
       {/* Charts row 1 */}
@@ -68,13 +76,13 @@ export default function PersonalDashboard() {
           <div className="flex items-center justify-between mb-4">
             <div>
               <h2 className="font-display text-lg font-medium text-ink dark:text-white flex items-center gap-2">
-                <TrendingUp size={17} className="text-leaf" /> Weekly Health Score
+                <TrendingUp size={17} className="text-leaf" /> {t('weekly_health_score')}
               </h2>
-              <p className="text-xs text-ink/40 dark:text-white/40 mt-0.5">Based on scanned products and logged meals</p>
+              <p className="text-xs text-ink/40 dark:text-white/40 mt-0.5">{t('based_on_scanned')}</p>
             </div>
             <div className="text-right">
               <p className="data-num text-2xl font-bold text-leaf-dark dark:text-leaf-light">74</p>
-              <p className="text-[11px] text-ink/40 dark:text-white/35">avg this week</p>
+              <p className="text-[11px] text-ink/40 dark:text-white/35">{t('avg_this_week')}</p>
             </div>
           </div>
           <ResponsiveContainer width="100%" height={200}>
@@ -119,9 +127,9 @@ export default function PersonalDashboard() {
         {/* Calories vs target bar */}
         <div className="glass-panel p-5 sm:p-6 fade-in-up">
           <h2 className="font-display text-lg font-medium text-ink dark:text-white mb-1 flex items-center gap-2">
-            <Target size={17} className="text-leaf" /> Calories vs Target
+            <Target size={17} className="text-leaf" /> {t('calories_vs_target')}
           </h2>
-          <p className="text-xs text-ink/40 dark:text-white/40 mb-4">This week</p>
+          <p className="text-xs text-ink/40 dark:text-white/40 mb-4">{t('this_week')}</p>
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={WEEKLY_NUTRITION} barGap={4}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.05)" />
@@ -137,9 +145,9 @@ export default function PersonalDashboard() {
         {/* Nutrition progress */}
         <div className="glass-panel p-5 sm:p-6 fade-in-up">
           <h2 className="font-display text-lg font-medium text-ink dark:text-white mb-1 flex items-center gap-2">
-            <Calendar size={17} className="text-leaf" /> Today's Nutrition
+            <Calendar size={17} className="text-leaf" /> {t('todays_nutrition')}
           </h2>
-          <p className="text-xs text-ink/40 dark:text-white/40 mb-4">Progress toward daily goals</p>
+          <p className="text-xs text-ink/40 dark:text-white/40 mb-4">{t('progress_daily')}</p>
           <div className="flex flex-col gap-4">
             {MACROS_TODAY.map((m) => (
               <div key={m.name}>
@@ -166,10 +174,19 @@ export default function PersonalDashboard() {
 
       {/* Water intake bar */}
       <div className="glass-panel p-5 sm:p-6 fade-in-up">
-        <h2 className="font-display text-lg font-medium text-ink dark:text-white mb-1 flex items-center gap-2">
-          <Droplets size={17} className="text-[#3E7CB1]" /> Water Intake Today
-        </h2>
-        <p className="text-xs text-ink/40 dark:text-white/40 mb-4">1,600 ml of 2,500 ml goal</p>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="font-display text-lg font-medium text-ink dark:text-white mb-1 flex items-center gap-2">
+              <Droplets size={17} className="text-[#3E7CB1]" /> {t('water_intake_today')}
+            </h2>
+            <p className="text-xs text-ink/40 dark:text-white/40">{waterIntake} ml of {waterGoal} ml goal</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={() => addWater(250)} className="bg-mint-tint dark:bg-white/5 text-[#3E7CB1] hover:bg-leaf-light/20 px-3 py-1.5 text-xs font-semibold rounded-xl transition-colors">+250ml</button>
+            <button onClick={() => addWater(500)} className="bg-mint-tint dark:bg-white/5 text-[#3E7CB1] hover:bg-leaf-light/20 px-3 py-1.5 text-xs font-semibold rounded-xl transition-colors">+500ml</button>
+          </div>
+        </div>
+        
         <ResponsiveContainer width="100%" height={140}>
           <BarChart data={WATER_DATA}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.05)" />

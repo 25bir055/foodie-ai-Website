@@ -15,7 +15,8 @@ import {
   updateProduct,
   deleteProduct
 } from '../services/api'
-const TABS = ['Overview', 'Products']
+import { useLanguage } from '../context/LanguageContext.jsx'
+
 const PIE_COLORS = ['#173C2C', '#2C7C51', '#4CAE7A', '#7FCB9F', '#E3A23D', '#D9534F']
 
 function Stat({ icon: Icon, label, value, sub, color = '#4CAE7A' }) {
@@ -34,7 +35,10 @@ function Stat({ icon: Icon, label, value, sub, color = '#4CAE7A' }) {
 }
 
 export default function Admin() {
-  const [tab, setTab] = useState('Overview')
+  const { t } = useLanguage()
+  const TABS = [t('overview') || 'Overview', t('products') || 'Products']
+
+  const [tab, setTab] = useState(t('overview') || 'Overview')
   const [productSearch, setProductSearch] = useState('')
   const [productsList, setProductsList] = useState([])
   const [loadingProducts, setLoadingProducts] = useState(true)
@@ -142,7 +146,7 @@ export default function Admin() {
   )
 
   return (
-    <AppShell title="Admin Dashboard">
+    <AppShell title={t('admin_dashboard') || "Admin Dashboard"}>
       {/* Tab bar */}
       <div className="flex gap-1 p-1 bg-moss-50 dark:bg-white/5 rounded-xl mb-6 max-w-sm fade-in-up">
         {TABS.map((t) => (
@@ -161,22 +165,22 @@ export default function Admin() {
       </div>
 
       {/* ── OVERVIEW ───────────────────────────────────────── */}
-      {tab === 'Overview' && (
+      {tab === (t('overview') || 'Overview') && (
         <>
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6 stagger-children">
-            <Stat icon={Users}      label="Total Users"     value={ADMIN_STATS.totalUsers.toLocaleString()} sub="+247 this month" color="#4CAE7A" />
-            <Stat icon={Package}    label="Total Products"  value={productsList.length.toLocaleString()} sub="in database" color="#3E7CB1" />
-            <Stat icon={ScanBarcode} label="Total Scans"    value={ADMIN_STATS.totalScans.toLocaleString()} sub="all time" color="#E3A23D" />
-            <Stat icon={TrendingUp} label="Avg Health Score" value={`${ADMIN_STATS.avgHealthScore}/100`} sub="across all products" color="#2C7C51" />
+            <Stat icon={Users}      label={t('total_users') || "Total Users"}     value={ADMIN_STATS.totalUsers.toLocaleString()} sub={t('this_month') || "+247 this month"} color="#4CAE7A" />
+            <Stat icon={Package}    label={t('total_products') || "Total Products"}  value={productsList.length.toLocaleString()} sub={t('in_database') || "in database"} color="#3E7CB1" />
+            <Stat icon={ScanBarcode} label={t('total_scans') || "Total Scans"}    value={ADMIN_STATS.totalScans.toLocaleString()} sub={t('all_time') || "all time"} color="#E3A23D" />
+            <Stat icon={TrendingUp} label={t('avg_health_score') || "Avg Health Score"} value={`${ADMIN_STATS.avgHealthScore}/100`} sub={t('across_all_products') || "across all products"} color="#2C7C51" />
           </div>
 
           <div className="grid lg:grid-cols-2 gap-4 mb-4">
             {/* Scans by day */}
             <div className="glass-panel p-5 sm:p-6">
               <h2 className="font-display text-lg font-medium text-ink dark:text-white mb-1 flex items-center gap-2">
-                <BarChart2 size={17} className="text-leaf" /> Scans This Week
+                <BarChart2 size={17} className="text-leaf" /> {t('scans_this_week') || 'Scans This Week'}
               </h2>
-              <p className="text-xs text-ink/40 dark:text-white/40 mb-4">Daily scan activity</p>
+              <p className="text-xs text-ink/40 dark:text-white/40 mb-4">{t('daily_scan_activity') || 'Daily scan activity'}</p>
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={ADMIN_STATS.scansByDay}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.04)" />
@@ -191,9 +195,9 @@ export default function Admin() {
             {/* Category breakdown pie */}
             <div className="glass-panel p-5 sm:p-6">
               <h2 className="font-display text-lg font-medium text-ink dark:text-white mb-1 flex items-center gap-2">
-                <PieIcon size={17} className="text-leaf" /> Category Breakdown
+                <PieIcon size={17} className="text-leaf" /> {t('category_breakdown') || 'Category Breakdown'}
               </h2>
-              <p className="text-xs text-ink/40 dark:text-white/40 mb-4">Scans by product category</p>
+              <p className="text-xs text-ink/40 dark:text-white/40 mb-4">{t('scans_by_category') || 'Scans by product category'}</p>
               <ResponsiveContainer width="100%" height={200}>
                 <PieChart>
                   <Pie
@@ -219,7 +223,7 @@ export default function Admin() {
       )}
 
       {/* ── PRODUCTS ───────────────────────────────────────── */}
-      {tab === 'Products' && (
+      {tab === (t('products') || 'Products') && (
         <div className="glass-panel overflow-hidden">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-5 py-4 border-b border-moss-100/70 dark:border-white/10">
             <div className="flex items-center gap-2 bg-mint-tint dark:bg-white/5 rounded-xl px-3.5 py-2 flex-1 max-w-xs">
@@ -227,7 +231,7 @@ export default function Admin() {
               <input
                 value={productSearch}
                 onChange={(e) => setProductSearch(e.target.value)}
-                placeholder="Search products…"
+                placeholder={t('search_products') || "Search products…"}
                 className="bg-transparent outline-none text-sm flex-1 text-ink dark:text-white"
               />
             </div>
@@ -235,18 +239,18 @@ export default function Admin() {
               onClick={handleOpenAdd}
               className="flex items-center gap-1.5 bg-moss-700 hover:bg-moss-600 text-white text-sm font-semibold px-4 py-2 rounded-xl focus-ring transition-colors"
             >
-              <Plus size={15} /> Add Product
+              <Plus size={15} /> {t('add_product') || 'Add Product'}
             </button>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-[11px] text-ink/40 dark:text-white/40 border-b border-moss-100/70 dark:border-white/8">
-                  <th className="px-5 py-3 font-semibold uppercase tracking-wide">Product</th>
-                  <th className="px-5 py-3 font-semibold uppercase tracking-wide">Category</th>
-                  <th className="px-5 py-3 font-semibold uppercase tracking-wide">Score</th>
-                  <th className="px-5 py-3 font-semibold uppercase tracking-wide">Price</th>
-                  <th className="px-5 py-3 font-semibold uppercase tracking-wide text-right">Actions</th>
+                  <th className="px-5 py-3 font-semibold uppercase tracking-wide">{t('product') || 'Product'}</th>
+                  <th className="px-5 py-3 font-semibold uppercase tracking-wide">{t('category') || 'Category'}</th>
+                  <th className="px-5 py-3 font-semibold uppercase tracking-wide">{t('score') || 'Score'}</th>
+                  <th className="px-5 py-3 font-semibold uppercase tracking-wide">{t('price') || 'Price'}</th>
+                  <th className="px-5 py-3 font-semibold uppercase tracking-wide text-right">{t('actions') || 'Actions'}</th>
                 </tr>
               </thead>
               <tbody>

@@ -37,6 +37,36 @@ router.get('/stats', async (req, res) => {
       count: c.count
     }))
 
+    // Disease Statistics
+    const usersWithDiseases = await User.find({ diseases: { $exists: true, $not: { $size: 0 } } }).select('diseases').lean()
+    let diseaseCounts = {}
+    usersWithDiseases.forEach(u => {
+      u.diseases.forEach(d => {
+        diseaseCounts[d] = (diseaseCounts[d] || 0) + 1
+      })
+    })
+    const diseaseStats = Object.keys(diseaseCounts).map(k => ({ name: k, count: diseaseCounts[k] })).sort((a,b) => b.count - a.count).slice(0, 10)
+
+    // Top Scanned Products
+    const topScannedProducts = await Scan.aggregate([
+      { $group: { _id: '$barcode', count: { $sum: 1 }, productName: { $first: '$productName' } } },
+      { $sort: { count: -1 } },
+      { $limit: 6 }
+    ])
+
+    // Daily Scan Chart (Last 7 days)
+    const sevenDaysAgo = new Date()
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+    const dailyScans = await Scan.aggregate([
+      { $match: { timestamp: { $gte: sevenDaysAgo } } },
+      { $group: {
+          _id: { $dateToString: { format: "%Y-%m-%d", date: "$timestamp" } },
+          count: { $sum: 1 }
+        }
+      },
+      { $sort: { _id: 1 } }
+    ])
+
     res.json({
       totalUsers,
       totalProducts,
@@ -44,7 +74,10 @@ router.get('/stats', async (req, res) => {
       avgHealthScore,
       recentScans: recentScans.map(s => ({ ...s, id: s._id.toString() })),
       recentProducts: recentProducts.map(p => ({ ...p, id: p.id || p._id.toString() })),
-      categoryData
+      categoryData,
+      diseaseStats,
+      topScannedProducts,
+      dailyScans
     })
   } catch (err) {
     console.error('Admin stats error:', err)

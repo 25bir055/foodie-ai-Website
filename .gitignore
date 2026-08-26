@@ -13,3 +13,15 @@ build/
 
 # Service account & secrets
 firebase-service-account.json
+
+# Binaries & Executables
+*.exe
+cloudflared.exe
+*.webm
+*.zip
+*.tar.gz
+
+# Uploads & temporary logs
+uploads/
+*.log
+.idea/

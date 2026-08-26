@@ -343,12 +343,46 @@ export function AppProvider({ children }) {
   }
 
   const handleLogout = async () => {
-    await logoutUser()
+    // 1. Immediately wipe all user tokens & storage
+    try {
+      localStorage.removeItem('foodie_auth_token')
+      localStorage.removeItem('token')
+      localStorage.removeItem('foodie_auth_user')
+      localStorage.removeItem('foodie_family_members')
+      const keys = Object.keys(localStorage).filter(k => k.startsWith('foodie_'))
+      keys.forEach(k => {
+        if (!k.includes('theme') && !k.includes('language')) {
+          localStorage.removeItem(k)
+        }
+      })
+      sessionStorage.clear()
+    } catch (e) {}
+
+    // 2. Clear React state
     setUser(null)
     setFavorites([])
     setShoppingList([])
     setScanHistoryState([])
     setNotifications([])
+    setProfile({
+      age: 27, height: 165, weight: 60,
+      activityLevel: 'Moderately Active',
+      dietaryPreference: 'Vegetarian',
+      calorieGoal: 2100,
+      goals: ['Low Sugar', 'High Protein'],
+      allergies: [],
+      profileCompleted: false
+    })
+
+    // 3. Firebase sign out
+    try {
+      await logoutUser()
+    } catch (e) {
+      console.warn('Logout error:', e)
+    }
+
+    // 4. Force browser to Login screen
+    window.location.replace('/')
   }
 
   const handleSetProfile = async (newProfile) => {

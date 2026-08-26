@@ -4,22 +4,24 @@ import { Heart, X, ArrowRight } from 'lucide-react'
 import AppShell from '../components/AppShell.jsx'
 import HealthScoreRing from '../components/HealthScoreRing.jsx'
 import { useApp } from '../store.jsx'
+import { useLanguage } from '../context/LanguageContext.jsx'
 
 export default function Favorites() {
   const { favoriteProducts, toggleFavorite } = useApp()
+  const { t } = useLanguage()
   const navigate = useNavigate()
 
   return (
-    <AppShell title="Saved Products">
+    <AppShell title={t('saved_products')}>
       <div className="flex items-center justify-between mb-5 fade-in-up">
         <div>
           <p className="text-sm text-ink/50 dark:text-white/40">
-            <span className="font-bold text-ink dark:text-white">{favoriteProducts.length}</span> saved products
+            <span className="font-bold text-ink dark:text-white">{favoriteProducts.length}</span> {t('saved_products_count')}
           </p>
         </div>
         {favoriteProducts.length > 0 && (
           <button onClick={() => navigate('/search')} className="text-xs font-semibold text-leaf-dark hover:underline flex items-center gap-1">
-            Browse more <ArrowRight size={12} />
+            {t('browse_more')} <ArrowRight size={12} />
           </button>
         )}
       </div>
@@ -56,19 +58,19 @@ export default function Favorites() {
                   <div className="flex items-center gap-1">
                     <span className="text-base">🔥</span>
                     <span className="data-num font-semibold text-ink/70 dark:text-white/60">{p.calories}</span>
-                    <span className="text-ink/40 dark:text-white/35">kcal</span>
+                    <span className="text-ink/40 dark:text-white/35">{t('kcal')}</span>
                   </div>
                   <div className="w-px h-3 bg-ink/15 dark:bg-white/10" />
                   <div className="flex items-center gap-1">
                     <span className="text-base">💪</span>
                     <span className="data-num font-semibold text-ink/70 dark:text-white/60">{p.protein}g</span>
-                    <span className="text-ink/40 dark:text-white/35">protein</span>
+                    <span className="text-ink/40 dark:text-white/35">{t('protein')}</span>
                   </div>
                   <div className="w-px h-3 bg-ink/15 dark:bg-white/10" />
                   <div className="flex items-center gap-1">
                     <span className="text-base">🍬</span>
                     <span className="data-num font-semibold text-ink/70 dark:text-white/60">{p.sugar}g</span>
-                    <span className="text-ink/40 dark:text-white/35">sugar</span>
+                    <span className="text-ink/40 dark:text-white/35">{t('sugar')}</span>
                   </div>
                 </div>
 
@@ -93,10 +95,10 @@ export default function Favorites() {
           <div className="h-16 w-16 rounded-2xl bg-clay/10 flex items-center justify-center mx-auto mb-4">
             <Heart className="text-clay" size={28} />
           </div>
-          <p className="font-display text-lg text-ink dark:text-white">No favorites yet</p>
-          <p className="text-sm text-ink/50 dark:text-white/40 mt-1">Tap the heart on any product to save it here for quick access.</p>
+          <p className="font-display text-lg text-ink dark:text-white">{t('no_favorites')}</p>
+          <p className="text-sm text-ink/50 dark:text-white/40 mt-1">{t('no_favorites_desc')}</p>
           <button onClick={() => navigate('/search')} className="btn-primary mt-5 inline-flex items-center gap-2">
-            Discover Products <ArrowRight size={16} />
+            {t('discover_products')} <ArrowRight size={16} />
           </button>
         </div>
       )}

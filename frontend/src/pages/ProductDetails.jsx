@@ -9,9 +9,11 @@ import AppShell from '../components/AppShell.jsx'
 import HealthScoreRing from '../components/HealthScoreRing.jsx'
 import ProductCard from '../components/ProductCard.jsx'
 import { scoreLabel } from '../data/mockData'
-import { fetchProductById, fetchAllProducts, saveScanRecord, fetchPersonalizedHealthScore } from '../services/api'
+import { fetchProductById, fetchAllProducts, saveScanRecord, fetchPersonalizedHealthScore, fetchFamilyMembers } from '../services/api'
 import { askGeminiAI } from '../services/gemini'
+import { auditProductForFamily } from '../utils/familySafety.js'
 import { useApp } from '../store.jsx'
+import { useLanguage } from '../context/LanguageContext.jsx'
 
 const NUTRIENTS = [
   { key: 'calories',     label: 'Calories',       unit: 'kcal', icon: '🔥' },
@@ -50,31 +52,16 @@ function getNutrientColor(key, value) {
   return 'text-leaf-dark dark:text-leaf-light'
 }
 
-// ── Internet check ────────────────────────────────────────────────────────
-async function checkInternet() {
-  if (typeof navigator !== 'undefined' && !navigator.onLine) {
-    return false
-  }
-  try {
-    const controller = new AbortController()
-    const id = setTimeout(() => controller.abort(), 4000)
-    await fetch('https://www.google.com/favicon.ico?' + Date.now(), {
-      method: 'HEAD',
-      mode: 'no-cors',
-      signal: controller.signal,
-      cache: 'no-store'
-    })
-    clearTimeout(id)
-    return true
-  } catch {
-    return typeof navigator !== 'undefined' ? navigator.onLine : true
-  }
+// ── Internet check helper ───────────────────────────────────────────────────
+function checkInternet() {
+  return typeof navigator !== 'undefined' ? navigator.onLine : true
 }
 
 export default function ProductDetails() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { user, profile, favorites, toggleFavorite, addToShoppingList, addScanToHistory } = useApp()
+  const { t } = useLanguage()
 
   const [product,      setProduct]      = useState(null)
   const [loading,      setLoading]      = useState(true)
@@ -86,6 +73,21 @@ export default function ProductDetails() {
   const [aiInsight,    setAiInsight]    = useState('')
   const [aiLoading,    setAiLoading]    = useState(false)
 
+  // Family Members State for Household Safety Audit
+  const [familyMembers, setFamilyMembers] = useState([])
+
+  useEffect(() => {
+    const loadFamily = async () => {
+      try {
+        const data = await fetchFamilyMembers()
+        if (Array.isArray(data)) setFamilyMembers(data)
+      } catch (e) {
+        console.warn('Family fetch error:', e)
+      }
+    }
+    loadFamily()
+  }, [])
+
   // ── Load product ─────────────────────────────────────────────────────────
   useEffect(() => {
     let cancelled = false
@@ -94,8 +96,8 @@ export default function ProductDetails() {
     setIsOffline(false)
 
     const loadProduct = async () => {
-      // Check internet first
-      const online = await checkInternet()
+      // Check online status
+      const online = checkInternet()
       if (!online) {
         if (!cancelled) { setIsOffline(true); setLoading(false) }
         return
@@ -103,19 +105,28 @@ export default function ProductDetails() {
 
       try {
         const data = await fetchProductById(id)
-        if (!data) throw new Error('Product not found')
+        if (!data) {
+          if (!cancelled) {
+            setProduct(null)
+            setLoading(false)
+          }
+          return
+        }
 
         let finalData = { ...data }
         
-        // Fetch personalized health score
+        // Fetch personalized health score non-blockingly
         if (profile) {
-          const mlResult = await fetchPersonalizedHealthScore(data, profile)
-          if (mlResult && mlResult.predictedHealthScore !== undefined) {
-            finalData.healthScore = mlResult.predictedHealthScore
-            // Set insights from ML if available, otherwise fallback
-            if (mlResult.insights && mlResult.insights.length > 0) {
-              finalData.personalizedInsights = mlResult.insights
+          try {
+            const mlResult = await fetchPersonalizedHealthScore(data, profile)
+            if (mlResult && mlResult.predictedHealthScore !== undefined) {
+              finalData.healthScore = mlResult.predictedHealthScore
+              if (mlResult.insights && mlResult.insights.length > 0) {
+                finalData.personalizedInsights = mlResult.insights
+              }
             }
+          } catch (mlErr) {
+            console.warn('ML personalized scoring skipped:', mlErr)
           }
         }
 
@@ -123,41 +134,42 @@ export default function ProductDetails() {
         setProduct(finalData)
         setLoading(false)
 
-        if (finalData) {
-          // Record scan in local history
-          addScanToHistory(finalData)
+        // Record scan in local history & database
+        addScanToHistory(finalData)
 
-          // Save scan to Firestore scans collection
-          saveScanRecord({
-            userId:      user?.uid || 'anonymous',
-            barcode:     data.barcode || id,
-            productName: data.name   || 'Unknown',
-            healthScore: data.healthScore ?? null
+        saveScanRecord({
+          userId:      user?.uid || user?._id || 'anonymous',
+          barcode:     data.barcode || id,
+          productName: data.name   || 'Unknown',
+          healthScore: data.healthScore ?? null
+        })
+
+        // Fetch alternatives in background
+        fetchAllProducts().then((all) => {
+          if (cancelled) return
+          const alts = (all || [])
+            .filter(p => p.category === data.category && String(p.id) !== String(data.id) && (p.healthScore || 0) > (data.healthScore || 0))
+            .sort((a, b) => (b.healthScore || 0) - (a.healthScore || 0))
+            .slice(0, 3)
+          setAlternatives(alts)
+        }).catch(() => {})
+
+        // Generate AI insight via Gemini in background
+        setAiLoading(true)
+        askGeminiAI('Give me a brief health insight and recommendation for this product.', data)
+          .then(insight => { if (!cancelled) { setAiInsight(insight); setAiLoading(false) } })
+          .catch(() => {
+            if (!cancelled) {
+              setAiInsight(data.insight || 'Balanced nutrition profile. Check the nutrition label before consuming.')
+              setAiLoading(false)
+            }
           })
-
-          // Fetch alternatives
-          fetchAllProducts().then((all) => {
-            if (cancelled) return
-            const alts = (all || [])
-              .filter(p => p.category === data.category && p.id !== data.id && p.healthScore > data.healthScore)
-              .sort((a, b) => b.healthScore - a.healthScore)
-              .slice(0, 3)
-            setAlternatives(alts)
-          })
-
-          // Generate AI insight via Gemini
-          setAiLoading(true)
-          askGeminiAI('Give me a brief health insight and recommendation for this product.', data)
-            .then(insight => { if (!cancelled) { setAiInsight(insight); setAiLoading(false) } })
-            .catch(() => {
-              if (!cancelled) {
-                setAiInsight(data.insight || 'Balanced nutrition profile. Check the nutrition label before consuming.')
-                setAiLoading(false)
-              }
-            })
+      } catch (err) {
+        console.error('Product load error:', err)
+        if (!cancelled) {
+          // If we already have a product, keep showing it
+          setLoading(false)
         }
-      } catch {
-        if (!cancelled) { setApiError(true); setLoading(false) }
       }
     }
 
@@ -168,10 +180,10 @@ export default function ProductDetails() {
   // ── States ────────────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <AppShell title="Product Details">
+      <AppShell title={t('product_details') || "Product Details"}>
         <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
           <Loader2 size={40} className="text-leaf animate-spin" />
-          <p className="text-sm text-ink/50 dark:text-white/40">Loading product details…</p>
+          <p className="text-sm text-ink/50 dark:text-white/40">{t('loading_product') || 'Loading product details…'}</p>
         </div>
       </AppShell>
     )
@@ -179,22 +191,22 @@ export default function ProductDetails() {
 
   if (isOffline) {
     return (
-      <AppShell title="Product Details">
+      <AppShell title={t('product_details') || "Product Details"}>
         <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6 text-center px-4 fade-in-up">
           <div className="h-24 w-24 rounded-full bg-clay/10 flex items-center justify-center">
             <WifiOff size={44} className="text-clay" />
           </div>
           <div>
-            <h2 className="font-display text-2xl font-semibold text-ink dark:text-white">No Internet Connection</h2>
+            <h2 className="font-display text-2xl font-semibold text-ink dark:text-white">{t('no_internet') || 'No Internet Connection'}</h2>
             <p className="text-sm text-ink/50 dark:text-white/40 mt-2 max-w-xs mx-auto leading-relaxed">
-              Please connect to the internet to scan products and retrieve product information.
+              {t('no_internet_desc_product') || 'Please connect to the internet to scan products and retrieve product information.'}
             </p>
           </div>
           <div className="flex gap-3">
             <button onClick={() => window.location.reload()} className="flex items-center gap-2 btn-primary">
-              <RefreshCw size={16} /> Retry
+              <RefreshCw size={16} /> {t('retry') || 'Retry'}
             </button>
-            <button onClick={() => navigate(-1)} className="btn-secondary">Go Back</button>
+            <button onClick={() => navigate(-1)} className="btn-secondary">{t('go_back') || 'Go Back'}</button>
           </div>
         </div>
       </AppShell>
@@ -203,18 +215,18 @@ export default function ProductDetails() {
 
   if (apiError) {
     return (
-      <AppShell title="Product Details">
+      <AppShell title={t('product_details') || "Product Details"}>
         <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6 text-center fade-in-up">
           <div className="text-7xl">⚠️</div>
           <div>
-            <h1 className="font-display text-2xl font-semibold text-ink dark:text-white">Database Error</h1>
+            <h1 className="font-display text-2xl font-semibold text-ink dark:text-white">{t('database_error') || 'Database Error'}</h1>
             <p className="text-sm text-ink/50 dark:text-white/40 mt-2 max-w-xs mx-auto">
-              Could not retrieve product details from database.
+              {t('could_not_retrieve') || 'Could not retrieve product details from database.'}
             </p>
           </div>
           <div className="flex gap-3">
-            <button onClick={() => window.location.reload()} className="btn-primary">Retry</button>
-            <button onClick={() => navigate(-1)} className="btn-secondary">Go Back</button>
+            <button onClick={() => window.location.reload()} className="btn-primary">{t('retry') || 'Retry'}</button>
+            <button onClick={() => navigate(-1)} className="btn-secondary">{t('go_back') || 'Go Back'}</button>
           </div>
         </div>
       </AppShell>
@@ -223,20 +235,20 @@ export default function ProductDetails() {
 
   if (!product) {
     return (
-      <AppShell title="Product Details">
+      <AppShell title={t('product_details') || "Product Details"}>
         <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6 text-center fade-in-up">
           <div className="text-7xl select-none">🔍</div>
           <div>
-            <h1 className="font-display text-2xl font-semibold text-ink dark:text-white">Product not found.</h1>
+            <h1 className="font-display text-2xl font-semibold text-ink dark:text-white">{t('product_not_found') || 'Product not found.'}</h1>
             <p className="text-sm text-ink/50 dark:text-white/40 mt-2 max-w-xs mx-auto">
-              This product is not in our database. Try scanning another barcode.
+              {t('not_in_database') || 'This product is not in our database. Try scanning another barcode.'}
             </p>
           </div>
           <div className="flex gap-3">
             <button onClick={() => navigate('/scan')} className="btn-primary flex items-center gap-2">
-              Scan Product
+              {t('scan_product') || 'Scan Product'}
             </button>
-            <button onClick={() => navigate('/dashboard')} className="btn-secondary">Dashboard</button>
+            <button onClick={() => navigate('/dashboard')} className="btn-secondary">{t('dashboard') || 'Dashboard'}</button>
           </div>
         </div>
       </AppShell>
@@ -258,13 +270,85 @@ export default function ProductDetails() {
   const saltValue = product.salt ?? product.salt_g ?? null
 
   return (
-    <AppShell title="Product Details">
+    <AppShell title={t('product_details') || "Product Details"}>
       <button
         onClick={() => navigate(-1)}
         className="flex items-center gap-1.5 text-sm text-ink/50 dark:text-white/40 hover:text-moss-700 dark:hover:text-white mb-5 focus-ring transition-colors"
       >
-        <ArrowLeft size={16} /> Back
+        <ArrowLeft size={16} /> {t('back') || 'Back'}
       </button>
+
+      {/* 👨‍👩‍👧‍👦 WHOLE FAMILY HEALTH & ALLERGY AUDIT */}
+      {(() => {
+        const familyAudit = auditProductForFamily(product, profile, familyMembers)
+        const hasAffected = familyAudit.affectedMembers.length > 0
+
+        return (
+          <div className="mb-6 glass-panel p-5 rounded-3xl border border-moss-100 dark:border-white/10 shadow-soft fade-in-up space-y-3.5 bg-white dark:bg-[#12211A]">
+            <div className="flex items-center justify-between">
+              <h3 className="font-display font-black text-base text-ink dark:text-white flex items-center gap-2">
+                <span>👨‍👩‍👧‍👦 Family & Household Safety Audit</span>
+              </h3>
+              <span className={`px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider ${
+                hasAffected 
+                  ? 'bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-300' 
+                  : 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300'
+              }`}>
+                {hasAffected ? '⚠️ Caution for Family' : '✅ 100% Safe for Entire Household'}
+              </span>
+            </div>
+
+            {hasAffected ? (
+              <div className="space-y-2">
+                <p className="text-xs font-bold text-red-600 dark:text-red-400 uppercase tracking-wider">
+                  🚨 Cannot Consume / Dangerous for ({familyAudit.affectedMembers.length} member{familyAudit.affectedMembers.length > 1 ? 's' : ''}):
+                </p>
+                <div className="grid sm:grid-cols-2 gap-2">
+                  {familyAudit.affectedMembers.map((m, mIdx) => (
+                    <div key={mIdx} className="p-3 rounded-2xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/40 text-xs">
+                      <div className="flex items-center justify-between gap-1 flex-wrap mb-1">
+                        <span className="font-bold text-red-900 dark:text-red-100 flex items-center gap-1">
+                          <span>👤 {m.name}</span>
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-red-200 dark:bg-red-900/80 text-red-800 dark:text-red-200">
+                            {m.relationship}
+                          </span>
+                        </span>
+                        <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-900/60 text-red-800 dark:text-red-200 border border-red-300 dark:border-red-800">
+                          {m.trigger}
+                        </span>
+                      </div>
+                      {m.clinicalDetail && (
+                        <p className="text-[11px] text-red-800 dark:text-red-300 leading-snug">
+                          {m.clinicalDetail}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="p-3.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/40 text-xs text-emerald-800 dark:text-emerald-300 flex items-center gap-2.5">
+                <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />
+                <span>Great news! No allergies or medical condition risks were found for any of your {familyAudit.totalHouseholdCount} family members.</span>
+              </div>
+            )}
+
+            {/* Safe Members Chips */}
+            {familyAudit.safeMembers.length > 0 && (
+              <div className="pt-2 border-t border-moss-100/70 dark:border-white/5 flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400">
+                  ✅ Safe for:
+                </span>
+                {familyAudit.safeMembers.map((sm, sIdx) => (
+                  <span key={sIdx} className="text-xs px-2.5 py-1 rounded-xl bg-emerald-100/70 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 font-semibold border border-emerald-200/60 dark:border-emerald-900/40">
+                    {sm.name} ({sm.relationship})
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      })()}
 
       {product.allergenWarning && (
         <div className="mb-5 p-4 rounded-2xl bg-clay/10 border border-clay/30 flex items-start gap-3 fade-in-up">
@@ -272,7 +356,7 @@ export default function ProductDetails() {
             <AlertCircle size={20} className="text-clay" />
           </div>
           <div>
-            <h3 className="text-clay font-bold text-sm uppercase tracking-wide">Allergy Warning</h3>
+            <h3 className="text-clay font-bold text-sm uppercase tracking-wide">{t('allergy_warning') || 'Allergy Warning'}</h3>
             <p className="text-sm text-clay/90 mt-0.5">{product.allergenWarning}</p>
           </div>
         </div>
@@ -284,7 +368,7 @@ export default function ProductDetails() {
             <Sparkles size={22} className="text-leaf-dark dark:text-leaf-light" />
           </div>
           <div className="relative z-10">
-            <h3 className="text-leaf-dark dark:text-leaf-light font-display font-semibold text-base mb-1">Personalized For You</h3>
+            <h3 className="text-leaf-dark dark:text-leaf-light font-display font-semibold text-base mb-1">{t('personalized_for_you') || 'Personalized For You'}</h3>
             <ul className="text-sm text-ink/80 dark:text-white/80 leading-relaxed font-medium space-y-1">
               {product.personalizedInsights.map((insight, idx) => (
                 <li key={idx}>{insight}</li>
@@ -322,7 +406,7 @@ export default function ProductDetails() {
             </h1>
             <p className="text-sm text-ink/50 dark:text-white/40 mt-1">{product.brand}</p>
             <p className="text-xs data-num text-ink/30 dark:text-white/25 mt-2">
-              Barcode: {product.barcode}
+              {t('barcode_label') || 'Barcode:'} {product.barcode}
             </p>
 
             {/* Tags */}
@@ -339,7 +423,7 @@ export default function ProductDetails() {
               {/* NOVA Group badge */}
               {novaGroup && (
                 <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-amber/10 text-amber border border-amber/20">
-                  NOVA {String(novaGroup).charAt(0)}
+                  {t('nova') || 'NOVA'} {String(novaGroup).charAt(0)}
                 </span>
               )}
               {(product.tags || []).map((t) => (
@@ -362,7 +446,7 @@ export default function ProductDetails() {
           onClick={() => addToShoppingList(product)}
           className="btn-primary flex items-center justify-center gap-2"
         >
-          <ShoppingCart size={16} /> Add to List
+          <ShoppingCart size={16} /> {t('add_to_list') || 'Add to List'}
         </button>
         <button
           onClick={() => toggleFavorite(product.id)}
@@ -371,13 +455,13 @@ export default function ProductDetails() {
           }`}
         >
           <Heart size={16} className={isFav ? 'fill-clay' : ''} />
-          {isFav ? 'Saved' : 'Save'}
+          {isFav ? (t('saved') || 'Saved') : (t('save') || 'Save')}
         </button>
         <button
           onClick={() => navigate(`/compare?a=${product.id}`)}
           className="btn-secondary flex items-center justify-center gap-2"
         >
-          <GitCompareArrows size={16} /> Compare
+          <GitCompareArrows size={16} /> {t('compare') || 'Compare'}
         </button>
       </div>
 
@@ -387,7 +471,7 @@ export default function ProductDetails() {
           <div className="glass-panel p-5 sm:p-6">
             <h2 className="font-display text-lg font-medium text-ink dark:text-white mb-4 flex items-center gap-2">
               <TrendingUp size={18} className="text-leaf" />
-              Nutrition Facts
+              {t('nutrition_facts') || 'Nutrition Facts'}
             </h2>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {NUTRIENTS.map((n) => {
@@ -397,7 +481,7 @@ export default function ProductDetails() {
                 return (
                   <div key={n.key} className="bg-mint-tint dark:bg-white/5 rounded-xl2 p-3.5 flex flex-col gap-1">
                     <span className="text-lg">{n.icon}</span>
-                    <p className="text-[11px] uppercase tracking-wide text-ink/40 dark:text-white/40 font-semibold">{n.label}</p>
+                    <p className="text-[11px] uppercase tracking-wide text-ink/40 dark:text-white/40 font-semibold">{t(n.key) || n.label}</p>
                     <p className={`data-num text-xl font-bold mt-0.5 ${valColor || 'text-ink dark:text-white'}`}>
                       {val}
                       <span className="text-xs font-normal text-ink/40 dark:text-white/35 ml-1">{n.unit}</span>
@@ -415,8 +499,8 @@ export default function ProductDetails() {
                     {nutriScoreGrade.toUpperCase()}
                   </span>
                   <div>
-                    <p className="text-xs uppercase tracking-wide font-semibold text-ink/40 dark:text-white/40">Nutri-Score</p>
-                    <p className="text-sm font-semibold text-ink dark:text-white mt-0.5">Grade {nutriScoreGrade.toUpperCase()}</p>
+                    <p className="text-xs uppercase tracking-wide font-semibold text-ink/40 dark:text-white/40">{t('nutri_score_title') || 'Nutri-Score'}</p>
+                    <p className="text-sm font-semibold text-ink dark:text-white mt-0.5">{t('grade') || 'Grade'} {nutriScoreGrade.toUpperCase()}</p>
                   </div>
                 </div>
               )}
@@ -424,7 +508,7 @@ export default function ProductDetails() {
                 <div className="rounded-xl p-3.5 bg-amber/10 flex items-center gap-3">
                   <span className="text-2xl font-black text-amber w-10 text-center">{String(novaGroup).charAt(0)}</span>
                   <div>
-                    <p className="text-xs uppercase tracking-wide font-semibold text-ink/40 dark:text-white/40">NOVA Group</p>
+                    <p className="text-xs uppercase tracking-wide font-semibold text-ink/40 dark:text-white/40">{t('nova_group') || 'NOVA Group'}</p>
                     <p className="text-xs text-ink/60 dark:text-white/50 mt-0.5 leading-tight">{novaLabel}</p>
                   </div>
                 </div>
@@ -441,13 +525,13 @@ export default function ProductDetails() {
                   <Sparkles size={15} className="text-leaf-light" />
                 </div>
                 <div>
-                  <p className="text-sm font-semibold">AI Health Insights</p>
-                  <p className="text-[11px] text-white/60">Powered by Gemini AI</p>
+                  <p className="text-sm font-semibold">{t('ai_health_insights') || 'AI Health Insights'}</p>
+                  <p className="text-[11px] text-white/60">{t('powered_by_gemini') || 'Powered by Gemini AI'}</p>
                 </div>
               </div>
               {aiLoading ? (
                 <div className="flex items-center gap-2 text-white/60 text-sm">
-                  <Loader2 size={14} className="animate-spin" /> Generating insights…
+                  <Loader2 size={14} className="animate-spin" /> {t('generating_insights') || 'Generating insights…'}
                 </div>
               ) : (
                 <p className="relative text-sm text-white/85 leading-relaxed whitespace-pre-wrap">
@@ -463,7 +547,7 @@ export default function ProductDetails() {
           {/* Ingredients */}
           <div className="glass-panel p-5">
             <h2 className="font-display text-base font-medium text-ink dark:text-white mb-3 flex items-center gap-2">
-              <Info size={16} className="text-leaf" /> Ingredients
+              <Info size={16} className="text-leaf" /> {t('ingredients_title') || 'Ingredients'}
             </h2>
             {product.ingredients && product.ingredients.length > 0 ? (
               <div className="flex flex-wrap gap-1.5">
@@ -484,18 +568,21 @@ export default function ProductDetails() {
                 })}
               </div>
             ) : (
-              <p className="text-sm text-ink/40 dark:text-white/30 italic">No ingredient data available.</p>
+              <p className="text-sm text-ink/40 dark:text-white/30 italic">{t('no_ingredient_data') || 'No ingredient data available.'}</p>
             )}
           </div>
 
           {/* Allergens */}
           <div className="glass-panel p-5">
             <h2 className="font-display text-base font-medium text-ink dark:text-white mb-3 flex items-center gap-2">
-              <TriangleAlert size={16} className="text-amber" /> Allergen Detection
+              <TriangleAlert size={16} className="text-amber" /> {t('allergen_detection') || 'Allergen Detection'}
             </h2>
             <div className="grid grid-cols-2 gap-2">
               {ALL_ALLERGENS.map((a) => {
-                const present = (product.allergens || []).includes(a)
+                const prodAllergens = Array.isArray(product.allergens)
+                  ? product.allergens
+                  : (typeof product.allergens === 'string' ? product.allergens.split(',') : [])
+                const present = prodAllergens.some(al => String(al).toLowerCase().includes(a.toLowerCase()))
                 return (
                   <div
                     key={a}
@@ -519,15 +606,15 @@ export default function ProductDetails() {
           {/* Health Score Summary */}
           <div className="glass-panel p-4 flex items-center justify-between">
             <div>
-              <p className="text-xs text-ink/40 dark:text-white/35 uppercase tracking-wide font-semibold">Health Score</p>
+              <p className="text-xs text-ink/40 dark:text-white/35 uppercase tracking-wide font-semibold">{t('health_score') || 'Health Score'}</p>
               <p className="data-num text-2xl font-bold text-ink dark:text-white mt-0.5">
                 {product.healthScore ?? '—'}<span className="text-sm font-normal text-ink/40">/100</span>
               </p>
             </div>
             <div className="text-right">
-              <p className="text-xs text-ink/40 dark:text-white/35">Rating</p>
+              <p className="text-xs text-ink/40 dark:text-white/35">{t('rating') || 'Rating'}</p>
               <p className="font-semibold text-sm mt-0.5" style={{ color }}>
-                {label}
+                {t(label.toLowerCase().replace(/ /g, '_')) || label}
               </p>
             </div>
           </div>
@@ -539,7 +626,7 @@ export default function ProductDetails() {
         <section className="mt-8">
           <div className="section-header">
             <h2 className="font-display text-lg font-medium text-ink dark:text-white flex items-center gap-2">
-              <Star size={18} className="text-leaf" /> Healthier Alternatives
+              <Star size={18} className="text-leaf" /> {t('healthier_alternatives') || 'Healthier Alternatives'}
             </h2>
           </div>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">

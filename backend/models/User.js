@@ -23,13 +23,33 @@ const UserSchema = new mongoose.Schema({
     default: 'user'
   },
   profile: {
+    // Personal
     age: { type: Number, default: 27 },
-    height: { type: Number, default: 165 },
-    weight: { type: Number, default: 60 },
+    dob: { type: Date, default: null },
+    gender: { type: String, default: '' },
+    
+    // Body
+    height: { type: Number, default: 165 }, // in cm
+    weight: { type: Number, default: 60 },  // in kg
+    bmi: { type: Number, default: null },
+
+    // Lifestyle
     activityLevel: { type: String, default: 'Moderately Active' },
-    dietaryPreference: { type: String, default: 'Vegetarian' },
+    waterGoal: { type: Number, default: 2.5 }, // in L
+    sleepHours: { type: Number, default: 8 },
+
+    // Health
+    medicalConditions: { type: [String], default: [] }, // Diseases
+    allergies: { type: [String], default: [] },
+    dietaryPreferences: { type: [String], default: ['Vegetarian'] }, // Food Preference
     calorieGoal: { type: Number, default: 2100 },
-    goals: { type: [String], default: ['Low Sugar', 'High Protein'] },
+    goals: { type: [String], default: ['Low Sugar', 'High Protein'] }, // Dietary Goal
+
+    // Location
+    country: { type: String, default: '' },
+    state: { type: String, default: '' },
+    preferredLanguage: { type: String, default: 'English' },
+
     profileCompleted: { type: Boolean, default: false }
   },
   favorites: {

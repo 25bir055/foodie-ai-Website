@@ -170,6 +170,25 @@ router.put('/profile', authMiddleware, async (req, res) => {
         ...user.profile.toObject(),
         ...profile
       }
+      
+      // Auto-calculate BMI & Calorie Goal
+      if (user.profile.height && user.profile.weight) {
+        const heightM = user.profile.height / 100
+        user.profile.bmi = parseFloat((user.profile.weight / (heightM * heightM)).toFixed(1))
+
+        if (user.profile.age) {
+          // Mifflin-St Jeor equation
+          let bmr = (10 * user.profile.weight) + (6.25 * user.profile.height) - (5 * user.profile.age)
+          bmr = (user.profile.gender === 'Female') ? bmr - 161 : bmr + 5
+          
+          let multiplier = 1.2 // Sedentary
+          if (user.profile.activityLevel === 'Lightly Active') multiplier = 1.375
+          else if (user.profile.activityLevel === 'Moderately Active') multiplier = 1.55
+          else if (user.profile.activityLevel === 'Very Active') multiplier = 1.725
+          
+          user.profile.calorieGoal = Math.round(bmr * multiplier)
+        }
+      }
     }
     if (Array.isArray(favorites)) {
       user.favorites = favorites

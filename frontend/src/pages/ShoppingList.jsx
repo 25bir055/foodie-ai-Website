@@ -3,9 +3,11 @@ import { useNavigate } from 'react-router-dom'
 import { Search, Trash2, Check, ShoppingCart, Plus, Minus, Package2, ArrowRight } from 'lucide-react'
 import AppShell from '../components/AppShell.jsx'
 import { useApp } from '../store.jsx'
+import { useLanguage } from '../context/LanguageContext.jsx'
 
 export default function ShoppingList() {
   const { shoppingList, removeFromShoppingList, togglePurchased, addToShoppingList } = useApp()
+  const { t } = useLanguage()
   const navigate = useNavigate()
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState('All')
@@ -25,26 +27,26 @@ export default function ShoppingList() {
   const progress = shoppingList.length > 0 ? Math.round((purchasedCount / shoppingList.length) * 100) : 0
 
   return (
-    <AppShell title="My Shopping List">
+    <AppShell title={t('my_shopping_list')}>
       {/* Stats bar */}
       <div className="glass-panel p-4 flex flex-col sm:flex-row sm:items-center gap-4 mb-5 fade-in-up">
         <div className="flex gap-5 flex-1">
           <div className="text-center">
             <p className="data-num text-2xl font-bold text-ink dark:text-white">{shoppingList.length}</p>
-            <p className="text-[11px] text-ink/40 dark:text-white/40 mt-0.5">Items</p>
+            <p className="text-[11px] text-ink/40 dark:text-white/40 mt-0.5">{t('items')}</p>
           </div>
           <div className="text-center">
             <p className="data-num text-2xl font-bold text-leaf-dark dark:text-leaf-light">{purchasedCount}</p>
-            <p className="text-[11px] text-ink/40 dark:text-white/40 mt-0.5">Purchased</p>
+            <p className="text-[11px] text-ink/40 dark:text-white/40 mt-0.5">{t('purchased')}</p>
           </div>
           <div className="text-center">
             <p className="data-num text-2xl font-bold text-amber">{pendingCount}</p>
-            <p className="text-[11px] text-ink/40 dark:text-white/40 mt-0.5">Remaining</p>
+            <p className="text-[11px] text-ink/40 dark:text-white/40 mt-0.5">{t('remaining')}</p>
           </div>
         </div>
         <div className="flex-1 sm:max-w-xs">
           <div className="flex items-center justify-between text-xs mb-1.5">
-            <span className="font-semibold text-ink/60 dark:text-white/50">Progress</span>
+            <span className="font-semibold text-ink/60 dark:text-white/50">{t('progress')}</span>
             <span className="data-num text-ink/40 dark:text-white/40">{progress}%</span>
           </div>
           <div className="h-2.5 rounded-full bg-moss-100 dark:bg-white/10 overflow-hidden">
@@ -60,7 +62,7 @@ export default function ShoppingList() {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search list…"
+            placeholder={t('search_list')}
             className="bg-transparent outline-none text-sm flex-1 text-ink dark:text-white placeholder:text-ink/30"
           />
         </div>
@@ -68,7 +70,7 @@ export default function ShoppingList() {
           onClick={() => navigate('/search')}
           className="btn-primary flex items-center gap-2 justify-center shrink-0"
         >
-          <Plus size={16} /> Add Products
+          <Plus size={16} /> {t('add_products')}
         </button>
       </div>
 
@@ -161,11 +163,11 @@ export default function ShoppingList() {
         <div className="glass-panel p-14 text-center">
           <ShoppingCart className="mx-auto text-ink/15 dark:text-white/10 mb-3" size={40} />
           <p className="font-display text-lg text-ink dark:text-white">
-            {query ? 'No items match your search' : 'Your list is empty'}
+            {query ? t('no_items_match') : t('list_is_empty')}
           </p>
-          <p className="text-sm text-ink/50 dark:text-white/40 mt-1">Add products from search or a product page.</p>
+          <p className="text-sm text-ink/50 dark:text-white/40 mt-1">{t('add_products_desc')}</p>
           <button onClick={() => navigate('/search')} className="btn-primary mt-4 inline-flex items-center gap-2">
-            Browse Products <ArrowRight size={16} />
+            {t('browse_products')} <ArrowRight size={16} />
           </button>
         </div>
       )}
@@ -174,8 +176,8 @@ export default function ShoppingList() {
       {shoppingList.length > 0 && (
         <div className="glass-panel p-5 mt-5 flex items-center justify-between">
           <div>
-            <p className="text-sm font-semibold text-ink/60 dark:text-white/50">Estimated Total</p>
-            <p className="text-xs text-ink/30 dark:text-white/30 mt-0.5">{shoppingList.length} items</p>
+            <p className="text-sm font-semibold text-ink/60 dark:text-white/50">{t('estimated_total')}</p>
+            <p className="text-xs text-ink/30 dark:text-white/30 mt-0.5">{shoppingList.length} {t('items').toLowerCase()}</p>
           </div>
           <p className="data-num text-2xl font-bold text-ink dark:text-white">₹{total}</p>
         </div>

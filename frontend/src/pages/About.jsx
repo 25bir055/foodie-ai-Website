@@ -1,74 +1,78 @@
 import React from 'react'
 import { ScanBarcode, Brain, Sparkles, Database, Leaf, ArrowRight, CheckCircle2 } from 'lucide-react'
 import AppShell from '../components/AppShell.jsx'
-
-const SECTIONS = [
-  {
-    icon: ScanBarcode,
-    title: 'How barcode scanning works',
-    color: '#2C7C51',
-    bg: '#EAF3EE',
-    steps: [
-      'Point your camera at any packaged food barcode',
-      'Foodie AI reads the code instantly using the device camera',
-      'The barcode is matched against a database of hundreds of thousands of products',
-      'Manual entry is always available as a fallback'
-    ],
-    body: 'Foodie AI reads the barcode instantly and matches it against a product database covering hundreds of thousands of packaged foods — no typing required.'
-  },
-  {
-    icon: Database,
-    title: 'How nutrition analysis works',
-    color: '#3E7CB1',
-    bg: '#E8F0F8',
-    steps: [
-      'Full nutrition panel is retrieved from Open Food Facts',
-      'Ingredient list is parsed and additives are flagged',
-      'Allergens are automatically detected and highlighted',
-      'Data is compared against WHO daily-value guidelines'
-    ],
-    body: 'Once a product is identified, we pull its nutrition panel, full ingredient list, and additive data, then check it against allergen categories and standard daily-value guidelines.'
-  },
-  {
-    icon: Brain,
-    title: 'How the health score works',
-    color: '#E3A23D',
-    bg: '#FBF3E4',
-    steps: [
-      'Sugar, sodium and saturated fat are penalised',
-      'Protein, fibre and micronutrient density add points',
-      'Additive load and ingredient quality are factored in',
-      'Score is normalised to 0–100 (higher is better)'
-    ],
-    body: 'Every product gets a 0–100 score weighing sugar, sodium, saturated fat, fibre, protein and additive content against public health guidelines.'
-  },
-  {
-    icon: Sparkles,
-    title: 'How AI recommendations work',
-    color: '#7C3CBF',
-    bg: '#F0E8F8',
-    steps: [
-      'Foodie AI reads the full product nutritional profile',
-      'Your personal goals and dietary preferences are applied',
-      'Key health positives and concerns are explained plainly',
-      'Better alternatives in the same category are suggested'
-    ],
-    body: 'Foodie AI reads the product\'s full profile — and your nutrition goals — to explain what matters most about it in plain language, and to suggest genuinely better alternatives.'
-  }
-]
-
-const TEAM_FEATURES = [
-  { icon: '🔒', title: 'Privacy First',     desc: 'Your scan history and profile data stay on your device.' },
-  { icon: '⚡', title: 'Instant Results',   desc: 'Product data loads in under 2 seconds on any connection.' },
-  { icon: '🌍', title: 'Open Data',         desc: 'Powered by Open Food Facts — the Wikipedia of food.' },
-  { icon: '🤖', title: 'AI-Powered',        desc: 'Google Gemini AI explains nutrition in plain language.' },
-  { icon: '📱', title: 'Works Everywhere',  desc: 'Responsive design works on phones, tablets and desktops.' },
-  { icon: '🌙', title: 'Dark Mode',         desc: 'Easy on the eyes with full dark mode support.' }
-]
+import { useLanguage } from '../context/LanguageContext.jsx'
 
 export default function About() {
+  const { t } = useLanguage()
+
+  const SECTIONS = [
+    {
+      icon: ScanBarcode,
+      title: t('how_barcode_works') || 'How barcode scanning works',
+      color: '#2C7C51',
+      bg: '#EAF3EE',
+      steps: [
+        t('barcode_step1') || 'Point your camera at any packaged food barcode',
+        t('barcode_step2') || 'Foodie AI reads the code instantly using the device camera',
+        t('barcode_step3') || 'The barcode is matched against a database of hundreds of thousands of products',
+        t('barcode_step4') || 'Manual entry is always available as a fallback'
+      ],
+      body: t('barcode_body') || 'Foodie AI reads the barcode instantly and matches it against a product database covering hundreds of thousands of packaged foods — no typing required.'
+    },
+    {
+      icon: Database,
+      title: t('how_nutrition_works') || 'How nutrition analysis works',
+      color: '#3E7CB1',
+      bg: '#E8F0F8',
+      steps: [
+        t('nutrition_step1') || 'Full nutrition panel is retrieved from Open Food Facts',
+        t('nutrition_step2') || 'Ingredient list is parsed and additives are flagged',
+        t('nutrition_step3') || 'Allergens are automatically detected and highlighted',
+        t('nutrition_step4') || 'Data is compared against WHO daily-value guidelines'
+      ],
+      body: t('nutrition_body') || 'Once a product is identified, we pull its nutrition panel, full ingredient list, and additive data, then check it against allergen categories and standard daily-value guidelines.'
+    },
+    {
+      icon: Brain,
+      title: t('how_score_works') || 'How the health score works',
+      color: '#E3A23D',
+      bg: '#FBF3E4',
+      steps: [
+        t('score_step1') || 'Sugar, sodium and saturated fat are penalised',
+        t('score_step2') || 'Protein, fibre and micronutrient density add points',
+        t('score_step3') || 'Additive load and ingredient quality are factored in',
+        t('score_step4') || 'Score is normalised to 0–100 (higher is better)'
+      ],
+      body: t('score_body') || 'Every product gets a 0–100 score weighing sugar, sodium, saturated fat, fibre, protein and additive content against public health guidelines.'
+    },
+    {
+      icon: Sparkles,
+      title: t('how_ai_works') || 'How AI recommendations work',
+      color: '#7C3CBF',
+      bg: '#F0E8F8',
+      steps: [
+        t('ai_step1') || 'Foodie AI reads the full product nutritional profile',
+        t('ai_step2') || 'Your personal goals and dietary preferences are applied',
+        t('ai_step3') || 'Key health positives and concerns are explained plainly',
+        t('ai_step4') || 'Better alternatives in the same category are suggested'
+      ],
+      body: t('ai_body') || 'Foodie AI reads the product\'s full profile — and your nutrition goals — to explain what matters most about it in plain language, and to suggest genuinely better alternatives.'
+    }
+  ]
+
+  const TEAM_FEATURES = [
+    { icon: '🔒', title: t('privacy_first') || 'Privacy First',     desc: t('privacy_desc') || 'Your scan history and profile data stay on your device.' },
+    { icon: '⚡', title: t('instant_results') || 'Instant Results',   desc: t('instant_desc') || 'Product data loads in under 2 seconds on any connection.' },
+    { icon: '🌍', title: t('open_data') || 'Open Data',         desc: t('open_data_desc') || 'Powered by Open Food Facts — the Wikipedia of food.' },
+    { icon: '🤖', title: t('ai_powered') || 'AI-Powered',        desc: t('ai_powered_desc') || 'Google Gemini AI explains nutrition in plain language.' },
+    { icon: '📱', title: t('works_everywhere') || 'Works Everywhere',  desc: t('works_desc') || 'Responsive design works on phones, tablets and desktops.' },
+    { icon: '🌙', title: t('dark_mode') || 'Dark Mode',         desc: t('dark_desc') || 'Easy on the eyes with full dark mode support.' }
+  ]
+
+
   return (
-    <AppShell title="About Foodie AI">
+    <AppShell title={t('about_foodie_ai') || "About Foodie AI"}>
       {/* Hero */}
       <div className="glass-panel p-7 sm:p-10 text-center relative overflow-hidden mb-8 fade-in-up">
         <div className="absolute inset-0 opacity-[0.04]">
@@ -80,15 +84,15 @@ export default function About() {
             <Leaf size={26} className="text-leaf-light" />
           </div>
           <h1 className="font-display text-3xl sm:text-4xl font-medium text-ink dark:text-white">Foodie AI</h1>
-          <p className="text-ink/50 dark:text-white/40 mt-1 font-semibold text-sm uppercase tracking-widest">Smart Food Product Scanner</p>
+          <p className="text-ink/50 dark:text-white/40 mt-1 font-semibold text-sm uppercase tracking-widest">{t('smart_food_scanner') || 'Smart Food Product Scanner'}</p>
           <p className="text-sm text-ink/60 dark:text-white/50 mt-5 leading-relaxed max-w-xl mx-auto">
-            Foodie AI helps you understand packaged food the moment you pick it up. Scan a barcode and get an instant, plain-language read on the nutrition, ingredients, allergens and healthier alternatives — so the decision gets made in the aisle, not after you're home.
+            {t('about_desc') || "Foodie AI helps you understand packaged food the moment you pick it up. Scan a barcode and get an instant, plain-language read on the nutrition, ingredients, allergens and healthier alternatives — so the decision gets made in the aisle, not after you're home."}
           </p>
         </div>
       </div>
 
       {/* How it works */}
-      <h2 className="font-display text-xl font-medium text-ink dark:text-white mb-4">How it works</h2>
+      <h2 className="font-display text-xl font-medium text-ink dark:text-white mb-4">{t('how_it_works') || 'How it works'}</h2>
       <div className="flex flex-col gap-4 mb-8 stagger-children">
         {SECTIONS.map(({ icon: Icon, title, body, steps, color, bg }) => (
           <div key={title} className="glass-panel p-5 sm:p-6 fade-in-up">
@@ -114,7 +118,7 @@ export default function About() {
       </div>
 
       {/* Features grid */}
-      <h2 className="font-display text-xl font-medium text-ink dark:text-white mb-4">Why Foodie AI</h2>
+      <h2 className="font-display text-xl font-medium text-ink dark:text-white mb-4">{t('why_foodie_ai') || 'Why Foodie AI'}</h2>
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-8">
         {TEAM_FEATURES.map(({ icon, title, desc }) => (
           <div key={title} className="glass-panel p-4 flex items-start gap-3">
@@ -128,7 +132,7 @@ export default function About() {
       </div>
 
       <p className="text-xs text-ink/30 dark:text-white/25 leading-relaxed">
-        Product data referenced from <a href="https://world.openfoodfacts.org" className="underline hover:text-ink/60">Open Food Facts</a> (ODbL licence). Health scores and AI insights are guidance, not medical advice. Always consult a qualified healthcare professional for dietary decisions.
+        {t('about_disclaimer') || 'Product data referenced from Open Food Facts (ODbL licence). Health scores and AI insights are guidance, not medical advice. Always consult a qualified healthcare professional for dietary decisions.'}
       </p>
     </AppShell>
   )

@@ -6,8 +6,8 @@ import {
   Clock, ShieldCheck, BarChart2, AlertCircle
 } from 'lucide-react'
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip,
-  ResponsiveContainer, CartesianGrid
+  BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip,
+  ResponsiveContainer, CartesianGrid, AreaChart, Area
 } from 'recharts'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
@@ -243,22 +243,85 @@ export default function AdminDashboard() {
               <StatCard icon={TrendingUp} label="Avg Health Score" value={stats ? `${stats.avgHealthScore}/100` : '—'} sub="Across all scored products" color="#8B5CF6" loading={loading} />
             </div>
 
-            {/* Category Bar Chart */}
-            {!loading && stats?.categoryData?.length > 0 && (
-              <div className="card" style={{ padding: '24px', marginBottom: 28 }}>
-                <h2 style={{ fontFamily: 'Plus Jakarta Sans', fontSize: '1rem', fontWeight: 700, marginBottom: 4, color: '#173C2C', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <BarChart2 size={17} color="#2C7C51" /> Product Categories
-                </h2>
-                <p style={{ fontSize: 12, color: '#7A8C82', marginBottom: 20 }}>Top categories in the products database</p>
-                <ResponsiveContainer width="100%" height={220}>
-                  <BarChart data={stats.categoryData} margin={{ top: 5, right: 5, bottom: 30, left: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(23,60,44,0.06)" />
-                    <XAxis dataKey="cat" tick={{ fontSize: 11, fill: '#7A8C82' }} angle={-25} textAnchor="end" axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 11, fill: '#7A8C82' }} axisLine={false} tickLine={false} />
-                    <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid rgba(23,60,44,0.1)', fontSize: 12 }} />
-                    <Bar dataKey="count" fill="#2C7C51" radius={[6, 6, 0, 0]} name="Products" />
-                  </BarChart>
-                </ResponsiveContainer>
+            {/* Metric Charts Grid */}
+            {!loading && stats && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: 24, marginBottom: 28 }}>
+                
+                {/* Daily Scan Chart */}
+                {stats.dailyScans?.length > 0 && (
+                  <div className="card" style={{ padding: '24px' }}>
+                    <h2 style={{ fontFamily: 'Plus Jakarta Sans', fontSize: '1rem', fontWeight: 700, marginBottom: 4, color: '#173C2C', display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <TrendingUp size={17} color="#2C7C51" /> Scan Activity (Last 7 Days)
+                    </h2>
+                    <p style={{ fontSize: 12, color: '#7A8C82', marginBottom: 20 }}>Daily product scan volume</p>
+                    <ResponsiveContainer width="100%" height={220}>
+                      <AreaChart data={stats.dailyScans} margin={{ top: 5, right: 5, bottom: 5, left: -20 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(23,60,44,0.06)" />
+                        <XAxis dataKey="_id" tick={{ fontSize: 11, fill: '#7A8C82' }} axisLine={false} tickLine={false} tickFormatter={val => val.split('-').slice(1).join('/')} />
+                        <YAxis tick={{ fontSize: 11, fill: '#7A8C82' }} axisLine={false} tickLine={false} />
+                        <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid rgba(23,60,44,0.1)', fontSize: 12 }} />
+                        <Area type="monotone" dataKey="count" stroke="#2C7C51" fill="#2C7C51" fillOpacity={0.2} name="Scans" />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+
+                {/* Disease Distribution */}
+                {stats.diseaseStats?.length > 0 && (
+                  <div className="card" style={{ padding: '24px' }}>
+                    <h2 style={{ fontFamily: 'Plus Jakarta Sans', fontSize: '1rem', fontWeight: 700, marginBottom: 4, color: '#173C2C', display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <Users size={17} color="#E3A23D" /> Health Conditions
+                    </h2>
+                    <p style={{ fontSize: 12, color: '#7A8C82', marginBottom: 20 }}>Top reported diseases among users</p>
+                    <ResponsiveContainer width="100%" height={220}>
+                      <BarChart layout="vertical" data={stats.diseaseStats} margin={{ top: 5, right: 20, bottom: 5, left: 40 }}>
+                        <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="rgba(23,60,44,0.06)" />
+                        <XAxis type="number" tick={{ fontSize: 11, fill: '#7A8C82' }} axisLine={false} tickLine={false} />
+                        <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: '#173C2C', fontWeight: 600 }} axisLine={false} tickLine={false} />
+                        <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid rgba(23,60,44,0.1)', fontSize: 12 }} />
+                        <Bar dataKey="count" fill="#E3A23D" radius={[0, 6, 6, 0]} name="Users" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+
+                {/* Top Scanned Products */}
+                {stats.topScannedProducts?.length > 0 && (
+                  <div className="card" style={{ padding: '24px' }}>
+                    <h2 style={{ fontFamily: 'Plus Jakarta Sans', fontSize: '1rem', fontWeight: 700, marginBottom: 4, color: '#173C2C', display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <Package size={17} color="#3E7CB1" /> Top Scanned Products
+                    </h2>
+                    <p style={{ fontSize: 12, color: '#7A8C82', marginBottom: 20 }}>Most popular products based on scan count</p>
+                    <ResponsiveContainer width="100%" height={220}>
+                      <BarChart layout="vertical" data={stats.topScannedProducts} margin={{ top: 5, right: 20, bottom: 5, left: 80 }}>
+                        <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="rgba(23,60,44,0.06)" />
+                        <XAxis type="number" tick={{ fontSize: 11, fill: '#7A8C82' }} axisLine={false} tickLine={false} />
+                        <YAxis type="category" dataKey="productName" tick={{ fontSize: 10, fill: '#173C2C', fontWeight: 600 }} width={80} axisLine={false} tickLine={false} tickFormatter={val => (val||'').substring(0, 15)} />
+                        <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid rgba(23,60,44,0.1)', fontSize: 12 }} />
+                        <Bar dataKey="count" fill="#3E7CB1" radius={[0, 6, 6, 0]} name="Scans" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+
+                {/* Category Bar Chart */}
+                {stats.categoryData?.length > 0 && (
+                  <div className="card" style={{ padding: '24px' }}>
+                    <h2 style={{ fontFamily: 'Plus Jakarta Sans', fontSize: '1rem', fontWeight: 700, marginBottom: 4, color: '#173C2C', display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <BarChart2 size={17} color="#8B5CF6" /> Product Categories
+                    </h2>
+                    <p style={{ fontSize: 12, color: '#7A8C82', marginBottom: 20 }}>Top categories in the products database</p>
+                    <ResponsiveContainer width="100%" height={220}>
+                      <BarChart data={stats.categoryData} margin={{ top: 5, right: 5, bottom: 30, left: -20 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(23,60,44,0.06)" />
+                        <XAxis dataKey="cat" tick={{ fontSize: 11, fill: '#7A8C82' }} angle={-25} textAnchor="end" axisLine={false} tickLine={false} />
+                        <YAxis tick={{ fontSize: 11, fill: '#7A8C82' }} axisLine={false} tickLine={false} />
+                        <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid rgba(23,60,44,0.1)', fontSize: 12 }} />
+                        <Bar dataKey="count" fill="#8B5CF6" radius={[6, 6, 0, 0]} name="Products" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
               </div>
             )}
 

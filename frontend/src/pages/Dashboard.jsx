@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react'
+import React, { useMemo, useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ScanBarcode, Search, ShoppingCart, ArrowRight, Clock,
@@ -9,10 +9,12 @@ import HealthScoreRing from '../components/HealthScoreRing.jsx'
 import ScrollReveal from '../components/ScrollReveal.jsx'
 import { MACROS_TODAY, AI_INSIGHTS } from '../data/mockData'
 import { useApp } from '../store.jsx'
+import { fetchAllProducts } from '../services/api'
+import { useLanguage } from '../context/LanguageContext.jsx'
 
 const QUICK_ACTIONS = [
-  { to: '/search',        label: 'Search Products',      icon: Search,      desc: 'Find by name or brand' },
-  { to: '/shopping-list', label: 'Shopping List',        icon: ShoppingCart, desc: 'Manage your cart'     }
+  { to: '/search',        label: 'search_products',      icon: Search,      desc: 'find_name_brand' },
+  { to: '/shopping-list', label: 'shoppingList',        icon: ShoppingCart, desc: 'manage_cart'     }
 ]
 
 const INSIGHT_ICON_MAP = {
@@ -26,7 +28,13 @@ const INSIGHT_ICON_MAP = {
 
 export default function Dashboard() {
   const navigate = useNavigate()
-  const { userName, scanHistory } = useApp()
+  const { userName, scanHistory, profile } = useApp()
+  const { t } = useLanguage()
+  const [productsList, setProductsList] = useState([])
+
+  useEffect(() => {
+    fetchAllProducts().then(setProductsList).catch(() => {})
+  }, [])
 
   const scansToDisplay = useMemo(() => {
     return scanHistory || []
@@ -60,6 +68,41 @@ export default function Dashboard() {
     return nudges
   }, [scansToDisplay, averageHealthScore])
 
+  // Recommendations based on user's profile goals
+  const recommendedProducts = useMemo(() => {
+    if (!productsList.length || !profile) return []
+    
+    let recommended = productsList.filter(p => {
+       // Filter out allergens
+       if (Array.isArray(profile.allergies) && profile.allergies.length > 0) {
+          const hasAllergy = profile.allergies.some(a => {
+             if (!a || a.toLowerCase() === 'none') return false
+             const aClean = a.trim().toLowerCase()
+             const ingStr = Array.isArray(p.ingredients) ? p.ingredients.join(' ').toLowerCase() : String(p.ingredients || '').toLowerCase()
+             const allStr = Array.isArray(p.allergens) ? p.allergens.join(' ').toLowerCase() : String(p.allergens || '').toLowerCase()
+             return ingStr.includes(aClean) || allStr.includes(aClean)
+          })
+          if (hasAllergy) return false
+       }
+       
+       let matchReasons = []
+       if (profile.goals?.includes('Low Sugar') && p.sugar < 10) matchReasons.push('Low Sugar')
+       if (profile.goals?.includes('High Protein') && p.protein >= 15) matchReasons.push('High Protein')
+       if (profile.goals?.includes('Low Sodium') && p.sodium < 200) matchReasons.push('Low Sodium')
+       if (profile.goals?.includes('Weight Loss') && p.calories < 150) matchReasons.push('Low Calorie')
+       
+       if (matchReasons.length > 0) {
+         p.matchReasons = matchReasons
+         return true
+       }
+       return false
+    })
+    
+    // Sort by health score
+    recommended.sort((a, b) => b.healthScore - a.healthScore)
+    return recommended.slice(0, 4) // Show top 4
+  }, [productsList, profile])
+
   return (
     <AppShell>
       {/* ── Welcome ──────────────────────────────────────── */}
@@ -70,16 +113,16 @@ export default function Dashboard() {
           </div>
           <div>
             <h1 className="font-display text-2xl sm:text-3xl font-medium text-ink dark:text-white">
-              Hello, {userName} 👋
+              {t('hello')}, {userName} 👋
             </h1>
-            <p className="text-ink/50 dark:text-white/40 mt-0.5 text-sm">Make healthier food choices, one scan at a time.</p>
+            <p className="text-ink/50 dark:text-white/40 mt-0.5 text-sm">{t('hello_desc')}</p>
           </div>
         </div>
       </div>
 
       <div className="mb-5 flex flex-wrap items-center gap-2">
-        <span className="rounded-full bg-leaf/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-moss-700 dark:text-leaf-light">Today</span>
-        <span className="rounded-full bg-moss-700/5 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-ink/60 dark:text-white/55">MongoDB Live</span>
+        <span className="rounded-full bg-leaf/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-moss-700 dark:text-leaf-light">{t('today')}</span>
+        <span className="rounded-full bg-moss-700/5 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-ink/60 dark:text-white/55">{t('mongodb_live')}</span>
       </div>
 
       {/* ── Main Scan Card ──────────────────────────────── */}
@@ -97,14 +140,14 @@ export default function Dashboard() {
             <ScanBarcode size={32} className="text-white" />
           </div>
           <div className="flex-1">
-            <p className="text-white/70 text-[11px] font-semibold uppercase tracking-widest mb-1">AI-Powered Scanner</p>
-            <h2 className="font-display text-xl sm:text-2xl font-medium text-white">Scan a Food Product</h2>
+            <p className="text-white/70 text-[11px] font-semibold uppercase tracking-widest mb-1">{t('ai_scanner')}</p>
+            <h2 className="font-display text-xl sm:text-2xl font-medium text-white">{t('scan_food_product')}</h2>
             <p className="text-white/70 text-sm mt-1.5 max-w-md leading-relaxed">
-              Scan the barcode and discover nutrition, ingredients and personalized health insights instantly.
+              {t('scan_desc')}
             </p>
           </div>
           <span className="inline-flex items-center gap-2 bg-white text-moss-700 font-semibold text-sm px-5 py-3 rounded-xl shrink-0 group-hover:gap-3 group-hover:shadow-md transition-all duration-300">
-            Scan Product <ArrowRight size={16} />
+            {t('scan_product')} <ArrowRight size={16} />
           </span>
         </div>
       </button>
@@ -113,28 +156,28 @@ export default function Dashboard() {
         <div className="mt-6 grid gap-4 lg:grid-cols-[1.1fr,0.9fr]">
           <div className="glass-panel p-4">
             <div className="flex items-center justify-between">
-              <h2 className="font-display text-lg font-medium text-ink dark:text-white flex items-center gap-2"><Target size={18} className="text-leaf" /> Scan Summary</h2>
-              <button onClick={() => navigate('/personal-dashboard')} className="text-xs font-semibold text-leaf-dark hover:underline">View details</button>
+              <h2 className="font-display text-lg font-medium text-ink dark:text-white flex items-center gap-2"><Target size={18} className="text-leaf" /> {t('scan_summary')}</h2>
+              <button onClick={() => navigate('/personal-dashboard')} className="text-xs font-semibold text-leaf-dark hover:underline">{t('view_details')}</button>
             </div>
             <div className="mt-4 space-y-4">
               <div className="flex items-center justify-between rounded-2xl bg-mint-tint p-3 dark:bg-white/5">
                 <div>
-                  <p className="text-[11px] uppercase tracking-[0.15em] text-ink/40 dark:text-white/35">Avg Scan Health score</p>
+                  <p className="text-[11px] uppercase tracking-[0.15em] text-ink/40 dark:text-white/35">{t('avg_scan_health')}</p>
                   <p className="mt-1 text-2xl font-bold text-ink dark:text-white">{averageHealthScore}</p>
                 </div>
-                <div className="rounded-full bg-leaf/10 px-2.5 py-1 text-[10px] font-semibold text-moss-700 dark:text-leaf-light">{scansToDisplay.length} Total Scans</div>
+                <div className="rounded-full bg-leaf/10 px-2.5 py-1 text-[10px] font-semibold text-moss-700 dark:text-leaf-light">{scansToDisplay.length} {t('total_scans')}</div>
               </div>
               <div className="grid grid-cols-3 gap-2 text-center">
-                <div className="rounded-2xl bg-white/60 p-3 dark:bg-white/5"><p className="text-[10px] uppercase tracking-[0.13em] text-ink/35 dark:text-white/35">History</p><p className="mt-1 text-lg font-bold text-ink dark:text-white">{scansToDisplay.length}</p></div>
-                <div className="rounded-2xl bg-white/60 p-3 dark:bg-white/5"><p className="text-[10px] uppercase tracking-[0.13em] text-ink/35 dark:text-white/35">Sugar Avg</p><p className="mt-1 text-lg font-bold text-ink dark:text-white">12g</p></div>
-                <div className="rounded-2xl bg-white/60 p-3 dark:bg-white/5"><p className="text-[10px] uppercase tracking-[0.13em] text-ink/35 dark:text-white/35">Protein Avg</p><p className="mt-1 text-lg font-bold text-ink dark:text-white">14g</p></div>
+                <div className="rounded-2xl bg-white/60 p-3 dark:bg-white/5"><p className="text-[10px] uppercase tracking-[0.13em] text-ink/35 dark:text-white/35">{t('history')}</p><p className="mt-1 text-lg font-bold text-ink dark:text-white">{scansToDisplay.length}</p></div>
+                <div className="rounded-2xl bg-white/60 p-3 dark:bg-white/5"><p className="text-[10px] uppercase tracking-[0.13em] text-ink/35 dark:text-white/35">{t('sugar_avg')}</p><p className="mt-1 text-lg font-bold text-ink dark:text-white">12g</p></div>
+                <div className="rounded-2xl bg-white/60 p-3 dark:bg-white/5"><p className="text-[10px] uppercase tracking-[0.13em] text-ink/35 dark:text-white/35">{t('protein_avg')}</p><p className="mt-1 text-lg font-bold text-ink dark:text-white">14g</p></div>
               </div>
             </div>
           </div>
 
           <div className="glass-panel p-4">
             <div className="flex items-center justify-between">
-              <h2 className="font-display text-lg font-medium text-ink dark:text-white flex items-center gap-2"><Zap size={18} className="text-leaf" /> Smart nudges</h2>
+              <h2 className="font-display text-lg font-medium text-ink dark:text-white flex items-center gap-2"><Zap size={18} className="text-leaf" /> {t('smart_nudges')}</h2>
             </div>
             <div className="mt-4 space-y-2">
               {smartNudges.map((nudge) => (
@@ -158,14 +201,59 @@ export default function Dashboard() {
                 <Icon size={18} />
               </div>
               <div className="min-w-0">
-                <p className="text-sm font-semibold text-ink dark:text-white/90">{label}</p>
-                <p className="text-[11px] text-ink/40 dark:text-white/35 mt-0.5">{desc}</p>
+                <p className="text-sm font-semibold text-ink dark:text-white/90">{t(label)}</p>
+                <p className="text-[11px] text-ink/40 dark:text-white/35 mt-0.5">{t(desc)}</p>
               </div>
               <ArrowRight size={14} className="ml-auto text-ink/25 shrink-0" />
             </button>
           ))}
         </div>
       </ScrollReveal>
+
+      {/* ── Suggested For You ───────────────────────────── */}
+      {recommendedProducts.length > 0 && (
+        <ScrollReveal delay={0.15}>
+          <section className="mt-6">
+            <div className="section-header flex items-center justify-between">
+              <h2 className="font-display text-lg font-medium text-ink dark:text-white flex items-center gap-2">
+                <Sparkles size={18} className="text-leaf" />
+                {t('suggested_for_you')}
+              </h2>
+              <span className="text-[10px] text-ink/40 dark:text-white/40 uppercase tracking-widest">{t('based_on_profile')}</span>
+            </div>
+            
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {recommendedProducts.map((p) => (
+                <button
+                  key={p.id || p.barcode}
+                  onClick={() => navigate(`/product/${p.id || p.barcode}`)}
+                  className="glass-panel p-4 flex flex-col items-center text-center card-hover focus-ring relative"
+                >
+                  <div className="absolute top-2 left-2 flex flex-col gap-1">
+                    {p.matchReasons.map(reason => (
+                       <span key={reason} className="text-[9px] bg-leaf-light/30 text-leaf-dark px-1.5 py-0.5 rounded-sm font-bold uppercase">
+                         {reason}
+                       </span>
+                    ))}
+                  </div>
+                  
+                  <div className="h-16 w-16 mt-4 mb-3 rounded-full bg-mint-tint dark:bg-white/5 flex items-center justify-center text-3xl">
+                    {p.imageUrl ? (
+                      <img src={p.imageUrl} alt={p.name} className="h-12 w-12 object-contain" />
+                    ) : (
+                      <span>{p.image || '🥗'}</span>
+                    )}
+                  </div>
+                  <p className="font-semibold text-sm text-ink dark:text-white/90 line-clamp-1">{p.name}</p>
+                  <p className="text-[11px] text-ink/40 dark:text-white/40 mt-1 mb-3">{p.brand}</p>
+                  
+                  <HealthScoreRing score={p.healthScore} size={40} strokeWidth={4} />
+                </button>
+              ))}
+            </div>
+          </section>
+        </ScrollReveal>
+      )}
 
       <ScrollReveal delay={0.1}>
         <div className="grid lg:grid-cols-[1fr,360px] gap-4 mt-6">
@@ -174,14 +262,14 @@ export default function Dashboard() {
             <div className="section-header">
               <h2 className="font-display text-lg font-medium text-ink dark:text-white flex items-center gap-2">
                 <BarChart2 size={18} className="text-leaf" />
-                Nutrition Overview
+                {t('nutrition_overview')}
               </h2>
             </div>
             <div className="glass-panel p-5 sm:p-6">
               <div className="grid sm:grid-cols-[auto,1fr] gap-6 items-center">
                 <div className="flex flex-col items-center gap-2 sm:border-r sm:border-moss-100 dark:sm:border-white/10 sm:pr-6">
                   <HealthScoreRing score={averageHealthScore} size={120} />
-                  <p className="text-xs text-ink/50 dark:text-white/40 text-center">Scan Health<br />Score Average</p>
+                  <p className="text-xs text-ink/50 dark:text-white/40 text-center">{t('scan_health_avg')}</p>
                 </div>
                 <div className="flex flex-col gap-4">
                   {MACROS_TODAY.map((m) => (
@@ -208,7 +296,7 @@ export default function Dashboard() {
             <div className="section-header">
               <h2 className="font-display text-lg font-medium text-ink dark:text-white flex items-center gap-2">
                 <Sparkles size={18} className="text-leaf" />
-                AI Food Insights
+                {t('ai_food_insights')}
               </h2>
             </div>
             <div className="glass-panel p-4 flex flex-col gap-2.5">
@@ -240,11 +328,11 @@ export default function Dashboard() {
           <div className="section-header">
             <h2 className="font-display text-lg font-medium text-ink dark:text-white flex items-center gap-2">
               <Clock size={18} className="text-leaf" />
-              Recent Scans {scansToDisplay.length > 0 && `(${scansToDisplay.length})`}
+              {t('recent_scans')} {scansToDisplay.length > 0 && `(${scansToDisplay.length})`}
             </h2>
             {scansToDisplay.length > 0 && (
               <button onClick={() => navigate('/search')} className="text-xs font-semibold text-leaf-dark hover:underline flex items-center gap-1">
-                See all <ArrowRight size={12} />
+                {t('see_all')} <ArrowRight size={12} />
               </button>
             )}
           </div>
@@ -272,11 +360,11 @@ export default function Dashboard() {
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-sm text-ink dark:text-white/90 truncate">{p.name}</p>
                     <p className="text-xs text-ink/40 dark:text-white/40">{p.brand ? `${p.brand} · ` : ''}{p.category}</p>
-                    <p className="text-[11px] text-ink/30 dark:text-white/30 mt-0.5">{p.scannedAt || 'Recently'}</p>
+                    <p className="text-[11px] text-ink/30 dark:text-white/30 mt-0.5">{p.scannedAt || t('recently')}</p>
                   </div>
                   <div className="flex flex-col items-end gap-2 shrink-0">
                     <HealthScoreRing score={p.healthScore || 50} size={44} strokeWidth={5} showLabel={false} />
-                    <span className="text-[10px] font-semibold text-leaf-dark dark:text-leaf-light">View →</span>
+                    <span className="text-[10px] font-semibold text-leaf-dark dark:text-leaf-light">{t('view')} →</span>
                   </div>
                 </button>
               ))}
@@ -286,15 +374,15 @@ export default function Dashboard() {
               <div className="h-12 w-12 rounded-2xl bg-mint-tint dark:bg-white/5 flex items-center justify-center mx-auto mb-3 text-2xl">
                 📦
               </div>
-              <p className="font-display font-medium text-base text-ink dark:text-white">No scans yet</p>
+              <p className="font-display font-medium text-base text-ink dark:text-white">{t('no_scans')}</p>
               <p className="text-xs text-ink/50 dark:text-white/40 mt-1 max-w-xs mx-auto">
-                Scan a product barcode or search to see your personal scan history and scores here.
+                {t('no_scans_desc')}
               </p>
               <button
                 onClick={() => navigate('/scan')}
                 className="btn-primary mt-4 inline-flex items-center gap-2 text-xs py-2 px-4"
               >
-                <ScanBarcode size={14} /> Scan First Product
+                <ScanBarcode size={14} /> {t('scan_first_product')}
               </button>
             </div>
           )}
@@ -309,9 +397,9 @@ export default function Dashboard() {
               <Zap size={18} className="text-leaf-dark" />
             </div>
             <div>
-              <p className="text-[11px] font-bold uppercase tracking-widest text-leaf-dark mb-1">Today's Tip</p>
+              <p className="text-[11px] font-bold uppercase tracking-widest text-leaf-dark mb-1">{t('todays_tip')}</p>
               <p className="text-sm text-ink/80 dark:text-white/80 leading-relaxed">
-                Drinking a glass of water before a meal can help you feel more full and prevents overeating.
+                {t('tip_water')}
               </p>
             </div>
           </div>

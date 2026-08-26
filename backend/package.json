@@ -10,18 +10,23 @@
     "seed": "node seed.js",
     "fetch-data": "node fetch-indian-products.js",
     "replace-db": "node replace-database.js",
-    "fresh-seed": "node fetch-indian-products.js && node replace-database.js"
+    "fresh-seed": "node fetch-indian-products.js && node replace-database.js",
+    "train-ml": "node scripts/train-ml-model.js"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.120.0",
+    "@google/generative-ai": "^0.24.1",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
     "csv-parser": "^3.2.1",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
+    "groq-sdk": "^1.5.0",
     "jsonwebtoken": "^9.0.3",
     "ml-random-forest": "^2.1.0",
     "mongoose": "^9.9.2",
     "multer": "^2.2.0",
-    "nodemailer": "^9.0.5"
+    "nodemailer": "^9.0.5",
+    "openai": "^7.5.0"
   }
 }

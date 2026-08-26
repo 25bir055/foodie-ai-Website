@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { searchUsdaFood, getUsdaApiKey } from './usdaFoodApi'
-import { fetchSearchProducts } from './api'
+import { fetchSearchProducts, getApiBaseUrl } from './api'
 import Tesseract from 'tesseract.js'
 
 let cachedModelName = null
@@ -271,12 +271,11 @@ async function localOcrNutritionExtractor(imageFile, dataUrl) {
 export async function analyzeNutritionImage(imageFile, userProfile = null) {
   const { base64Data, dataUrl, mimeType } = await compressAndResizeImage(imageFile, 1000, 1000, 0.82)
 
-  const geminiKey = getGeminiApiKey()
   const usdaKey = getUsdaApiKey()
-  const USE_ONLY_OCR = true
+  const USE_ONLY_OCR = false
 
-  // Engine 2: Gemini Vision AI
-  if (geminiKey && !USE_ONLY_OCR) {
+  // Engine 2: Groq Vision AI via Backend
+  if (!USE_ONLY_OCR) {
     if (geminiKey === 'TEST_MODE_ACTIVATE') {
       console.log('🧪 Running Gemini in TEST MODE...')
       await new Promise(r => setTimeout(r, 1500))
@@ -336,11 +335,23 @@ Analyze this food image and output ONLY a valid JSON object matching this schema
 }
 ${userContext}`
 
-      const genAI = new GoogleGenerativeAI(geminiKey)
-      const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' })
-      const result = await model.generateContent([prompt, { inlineData: { data: base64Data, mimeType: mimeType || 'image/jpeg' } }])
-      const response = await result.response
-      const parsed = parseFastJson(response.text())
+      const baseUrl = getApiBaseUrl();
+      const res = await fetch(`${baseUrl}/chat/vision`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: typeof localStorage !== 'undefined' ? `Bearer ${localStorage.getItem('token')}` : ''
+        },
+        body: JSON.stringify({
+          prompt,
+          base64Data,
+          mimeType: mimeType || 'image/jpeg'
+        })
+      });
+
+      if (!res.ok) throw new Error('Backend Vision request failed');
+      const responseJson = await res.json();
+      const parsed = parseFastJson(responseJson.text);
 
       if (parsed && (parsed.name || parsed.calories)) {
         const calories = parseCleanNumber(parsed.calories, 180)
@@ -368,17 +379,17 @@ ${userContext}`
           allergens: Array.isArray(parsed.allergens) ? parsed.allergens : [],
           concerningIngredients: Array.isArray(parsed.concerningIngredients) ? parsed.concerningIngredients : [],
           tags: ['Scanned', healthScore >= 70 ? 'Nutritious' : 'Standard'],
-          insight: parsed.insight || `Gemini Vision analyzed product (${calories} kcal).`,
+          insight: parsed.insight || `AI Vision analyzed product (${calories} kcal).`,
           allergenWarning: parsed.allergenWarning || null,
           recommendation: parsed.recommendation || null,
           imageUrl: dataUrl,
           image: '🥗',
-          source: 'Gemini Vision AI'
+          source: 'Groq Vision AI'
         }
       }
     } catch (err) {
-      console.error('Gemini Vision API Error:', err)
-      throw new Error(`Gemini AI Error: ${err.message}. Please check if your API Key is valid.`)
+      console.error('Groq Vision API Error:', err)
+      throw new Error(`Groq AI Error: ${err.message}. Please check if backend is running.`)
     }
   }
 
@@ -387,7 +398,7 @@ ${userContext}`
 
 
   // Try PaddleOCR Server first
-  if (!geminiKey || USE_ONLY_OCR) {
+  if (USE_ONLY_OCR) {
     try {
       console.log('🔍 Attempting local PaddleOCR Server Engine...')
       const rawText = await localPaddleOcrExtractor(imageFile)
@@ -402,4 +413,95 @@ ${userContext}`
 
   // Tesseract.js Fallback
   return await localOcrNutritionExtractor(imageFile, dataUrl)
+}
+
+export async function analyzePrescriptionImage(imageFile, onProgress = null) {
+  const { dataUrl, base64Data, mimeType } = await compressAndResizeImage(imageFile, 1500, 1500, 0.90)
+
+  // 1. Run Real Client-Side Tesseract OCR on the user's uploaded photo
+  let extractedOcrText = ''
+  try {
+    if (onProgress) onProgress('🔬 Running Tesseract Optical Character Recognition (OCR) on your prescription...')
+    const ocrRes = await Tesseract.recognize(imageFile, 'eng', {
+      logger: (m) => {
+        if (m.status === 'recognizing text' && onProgress) {
+          onProgress(`Reading prescription text... ${Math.round((m.progress || 0) * 100)}%`)
+        }
+      }
+    })
+    extractedOcrText = (ocrRes?.data?.text || '').trim()
+    console.log('Real Tesseract OCR Extracted Text:', extractedOcrText)
+  } catch (tessErr) {
+    console.warn('Tesseract client OCR warning:', tessErr)
+  }
+
+  // 2. Send Real Extracted OCR Text to Backend Groq AI Clinical Parser
+  if (onProgress) onProgress('🩺 Clinical AI analyzing medications, dosages, and health conditions...')
+  const baseUrl = getApiBaseUrl()
+
+  try {
+    const res = await fetch(`${baseUrl}/prescription/analyze-ocr`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: typeof localStorage !== 'undefined' ? `Bearer ${localStorage.getItem('token')}` : ''
+      },
+      body: JSON.stringify({
+        ocrText: extractedOcrText,
+        fileUrl: dataUrl
+      })
+    })
+
+    if (res.ok) {
+      const parsedData = await res.json()
+      return {
+        ...parsedData,
+        fileUrl: dataUrl,
+        ocrText: extractedOcrText || parsedData.ocrText || ''
+      }
+    }
+  } catch (apiErr) {
+    console.warn('Backend OCR analyze API error:', apiErr)
+  }
+
+  // 3. If backend endpoint was unreachable, parse the actual OCR text locally
+  if (extractedOcrText.length > 5) {
+    const lines = extractedOcrText.split('\n').map(l => l.trim()).filter(Boolean)
+    return {
+      doctorName: lines.find(l => /dr\.?|doctor/i.test(l)) || 'Physician',
+      clinicName: lines.find(l => /hospital|clinic|center|care/i.test(l)) || 'Medical Center',
+      patientName: 'Self',
+      prescriptionDate: new Date().toISOString().split('T')[0],
+      ocrText: extractedOcrText,
+      detectedConditions: [],
+      restrictedNutrients: [],
+      avoidFoods: [],
+      medicines: lines.filter(l => /tab|cap|syr|inj|mg|\d-\d-\d/i.test(l)).map(l => ({
+        name: l,
+        dosage: 'As prescribed',
+        frequency: 'As directed',
+        purpose: 'Prescribed Medication',
+        timing: 'Follow physician advice'
+      })),
+      aiExplanation: `OCR scanned ${lines.length} lines from your uploaded prescription image.`,
+      foodInteractions: [],
+      fileUrl: dataUrl
+    }
+  }
+
+  // 4. If image was completely blank or unreadable
+  return {
+    doctorName: 'Not detected',
+    clinicName: 'Not detected',
+    patientName: 'Self',
+    prescriptionDate: new Date().toISOString().split('T')[0],
+    ocrText: '',
+    detectedConditions: [],
+    restrictedNutrients: [],
+    avoidFoods: [],
+    medicines: [],
+    aiExplanation: 'Could not clearly recognize doctor handwriting or printed text from this image. Please take a clear, well-lit close-up photo of the prescription.',
+    foodInteractions: [],
+    fileUrl: dataUrl
+  }
 }

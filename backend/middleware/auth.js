@@ -19,22 +19,30 @@ async function authMiddleware(req, res, next) {
     }
 
     req.user = user
+    req.userId = user._id
     next()
   } catch (err) {
     return res.status(401).json({ error: 'Invalid or expired token', message: err.message })
   }
 }
 
-function optionalAuth(req, res, next) {
+async function optionalAuth(req, res, next) {
   const authHeader = req.headers.authorization
   if (authHeader && authHeader.startsWith('Bearer ')) {
     const token = authHeader.split(' ')[1]
     try {
       const decoded = jwt.verify(token, JWT_SECRET)
-      req.userId = decoded.userId
+      if (decoded && decoded.userId) {
+        req.userId = decoded.userId
+        req.user = { _id: decoded.userId }
+      }
     } catch {
-      // ignore
+      req.userId = 'guest_user'
+      req.user = { _id: 'guest_user' }
     }
+  } else {
+    req.userId = 'guest_user'
+    req.user = { _id: 'guest_user' }
   }
   next()
 }

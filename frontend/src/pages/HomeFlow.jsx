@@ -5,28 +5,30 @@ import AppShell from '../components/AppShell.jsx'
 import FlowSteps from '../components/FlowSteps.jsx'
 import ScoreBadge from '../components/ScoreBadge.jsx'
 import { PRODUCTS } from '../data/mockData.js'
-
-const FEATURED = [
-  { id: 'p1', label: 'Crunchy Masala Oats', sub: 'High fiber · good morning choice' },
-  { id: 'p3', label: 'Roasted Chana Snack Mix', sub: 'Protein-led snack' },
-  { id: 'p5', label: 'Greek Style Curd', sub: 'Smart everyday dairy' }
-]
+import { useLanguage } from '../context/LanguageContext.jsx'
 
 export default function HomeFlow() {
   const navigate = useNavigate()
+  const { t } = useLanguage()
+  
+  const FEATURED = [
+    { id: 'p1', label: 'Crunchy Masala Oats', sub: t('high_fiber_morning') || 'High fiber · good morning choice' },
+    { id: 'p3', label: 'Roasted Chana Snack Mix', sub: t('protein_led_snack') || 'Protein-led snack' },
+    { id: 'p5', label: 'Greek Style Curd', sub: t('smart_everyday_dairy') || 'Smart everyday dairy' }
+  ]
   const product = PRODUCTS[0]
 
   return (
-    <AppShell title="Foodie AI Flow">
+    <AppShell title={t('foodie_ai_flow') || "Foodie AI Flow"}>
       <div className="space-y-5">
         <div className="glass-panel overflow-hidden p-4 sm:p-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-moss-600 dark:text-leaf-light">Smart food journey</p>
-              <h1 className="mt-2 font-display text-3xl text-ink dark:text-white">Scan better. Eat smarter.</h1>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-moss-600 dark:text-leaf-light">{t('smart_food_journey') || 'Smart food journey'}</p>
+              <h1 className="mt-2 font-display text-3xl text-ink dark:text-white">{t('scan_better') || 'Scan better. Eat smarter.'}</h1>
             </div>
             <button onClick={() => navigate('/scan')} className="btn-primary inline-flex w-fit items-center gap-2">
-              <ScanBarcode size={16} /> Start scan
+              <ScanBarcode size={16} /> {t('start_scan') || 'Start scan'}
             </button>
           </div>
 
@@ -39,8 +41,8 @@ export default function HomeFlow() {
           <div className="glass-panel p-5">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-ink/40 dark:text-white/40">Recommended now</p>
-                <h2 className="mt-1 font-display text-2xl text-ink dark:text-white">Healthy starter pick</h2>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-ink/40 dark:text-white/40">{t('recommended_now') || 'Recommended now'}</p>
+                <h2 className="mt-1 font-display text-2xl text-ink dark:text-white">{t('healthy_starter_pick') || 'Healthy starter pick'}</h2>
               </div>
               <ScoreBadge score={product.healthScore} />
             </div>
@@ -59,18 +61,18 @@ export default function HomeFlow() {
             </div>
 
             <div className="mt-4 flex gap-3">
-              <button onClick={() => navigate(`/product/${product.id}`)} className="btn-primary flex-1">View details</button>
-              <button onClick={() => navigate('/search')} className="btn-secondary flex-1">Browse products</button>
+              <button onClick={() => navigate(`/product/${product.id}`)} className="btn-primary flex-1">{t('view_details') || 'View details'}</button>
+              <button onClick={() => navigate('/search')} className="btn-secondary flex-1">{t('browse_products') || 'Browse products'}</button>
             </div>
           </div>
 
           <div className="glass-panel p-5">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-ink/40 dark:text-white/40">Quick actions</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-ink/40 dark:text-white/40">{t('quick_actions') || 'Quick actions'}</p>
             <div className="mt-4 space-y-2">
               {[
-                { to: '/scan', label: 'Scan a barcode', icon: ScanBarcode, desc: 'Instant product read' },
-                { to: '/search', label: 'Find a product', icon: Search, desc: 'Smart search and filters' },
-                { to: '/shopping-list', label: 'Build cart', icon: ShoppingCart, desc: 'Track your shop' }
+                { to: '/scan', label: t('scan_a_barcode') || 'Scan a barcode', icon: ScanBarcode, desc: t('instant_product_read') || 'Instant product read' },
+                { to: '/search', label: t('find_a_product') || 'Find a product', icon: Search, desc: t('smart_search_filters') || 'Smart search and filters' },
+                { to: '/shopping-list', label: t('build_cart') || 'Build cart', icon: ShoppingCart, desc: t('track_your_shop') || 'Track your shop' }
               ].map(({ to, label, icon: Icon, desc }) => (
                 <button key={to} onClick={() => navigate(to)} className="flex w-full items-center gap-3 rounded-2xl border border-moss-100 bg-white/60 p-3 text-left transition hover:bg-mint-tint dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10">
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-moss-50 text-moss-700 dark:bg-white/5 dark:text-leaf-light"><Icon size={18} /></div>
@@ -87,8 +89,8 @@ export default function HomeFlow() {
 
         <div className="glass-panel p-5">
           <div className="flex items-center justify-between">
-            <h2 className="font-display text-xl text-ink dark:text-white">Top picks for you</h2>
-            <button className="text-sm font-semibold text-moss-700 dark:text-leaf-light" onClick={() => navigate('/favorites')}>View favorites</button>
+            <h2 className="font-display text-xl text-ink dark:text-white">{t('top_picks_for_you') || 'Top picks for you'}</h2>
+            <button className="text-sm font-semibold text-moss-700 dark:text-leaf-light" onClick={() => navigate('/favorites')}>{t('view_favorites') || 'View favorites'}</button>
           </div>
 
           <div className="mt-4 grid gap-3 md:grid-cols-3">

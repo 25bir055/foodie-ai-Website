@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Search, Bell, Sun, Moon, Leaf, X, ScanBarcode } from 'lucide-react'
 import { useApp } from '../store.jsx'
 import { PRODUCTS } from '../data/mockData'
+import { useLanguage } from '../context/LanguageContext.jsx'
 
 export default function Header({ title }) {
   const navigate = useNavigate()
@@ -11,6 +12,7 @@ export default function Header({ title }) {
     notifications, unreadNotifCount,
     markNotificationAsRead, markAllNotificationsAsRead, clearNotifications
   } = useApp()
+  const { t } = useLanguage()
 
   const [searchOpen, setSearchOpen] = useState(false)
   const [query, setQuery]           = useState('')
@@ -49,7 +51,7 @@ export default function Header({ title }) {
             className="flex-1 sm:flex-none sm:w-80 flex items-center gap-2 bg-white/70 dark:bg-white/5 border border-moss-100 dark:border-white/10 rounded-full px-4 py-2 text-sm text-ink/40 dark:text-white/35 focus-ring hover:bg-white dark:hover:bg-white/8 transition-colors"
           >
             <Search size={15} />
-            Search food products…
+            {t('search_food')}
           </button>
         )}
 
@@ -61,7 +63,7 @@ export default function Header({ title }) {
               className="hidden sm:flex items-center gap-2 bg-white/70 dark:bg-white/5 border border-moss-100 dark:border-white/10 rounded-full px-4 py-2 text-sm text-ink/40 dark:text-white/35 w-56 focus-ring hover:bg-white dark:hover:bg-white/8 transition-colors"
             >
               <Search size={15} />
-              Search food…
+              {t('search_food')}
             </button>
           )}
 
@@ -93,10 +95,10 @@ export default function Header({ title }) {
               <div className="absolute right-0 top-12 w-80 max-h-96 glass-strong rounded-xl2 shadow-glow z-50 overflow-hidden flex flex-col fade-in-up border border-moss-100 dark:border-white/10">
                 <div className="px-4 py-3 border-b border-moss-100/70 dark:border-white/10 flex items-center justify-between bg-moss-50/50 dark:bg-white/5">
                   <div className="flex items-center gap-2">
-                    <p className="text-sm font-semibold text-ink dark:text-white">Notifications</p>
+                    <p className="text-sm font-semibold text-ink dark:text-white">{t('notifications') || 'Notifications'}</p>
                     {unreadNotifCount > 0 && (
                       <span className="px-2 py-0.2 rounded-full bg-clay/15 text-clay text-[10px] font-bold">
-                        {unreadNotifCount} new
+                        {unreadNotifCount} {t('new_badge') || 'new'}
                       </span>
                     )}
                   </div>
@@ -106,7 +108,7 @@ export default function Header({ title }) {
                         onClick={markAllNotificationsAsRead}
                         className="text-[11px] font-medium text-leaf-dark dark:text-leaf-light hover:underline"
                       >
-                        Read all
+                        {t('read_all') || 'Read all'}
                       </button>
                     )}
                     <button onClick={() => setShowNotif(false)} className="text-ink/30 hover:text-ink/60 focus-ring">
@@ -134,7 +136,7 @@ export default function Header({ title }) {
                     ))
                   ) : (
                     <div className="p-6 text-center text-xs text-ink/40 dark:text-white/40">
-                      No notifications right now.
+                      {t('no_notifications') || 'No notifications right now.'}
                     </div>
                   )}
                 </div>
@@ -145,7 +147,7 @@ export default function Header({ title }) {
                       onClick={clearNotifications}
                       className="text-[11px] text-ink/40 hover:text-clay dark:text-white/30 dark:hover:text-clay font-medium"
                     >
-                      Clear all notifications
+                      {t('clear_all_notifications') || 'Clear all notifications'}
                     </button>
                   </div>
                 )}
@@ -175,12 +177,12 @@ export default function Header({ title }) {
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && goSearch()}
-                  placeholder="Search food products, brands, barcodes…"
+                  placeholder={t('search_food')}
                   className="bg-transparent outline-none text-sm flex-1 text-ink dark:text-white"
                 />
                 {query && <button onClick={() => setQuery('')} className="text-ink/30 hover:text-ink/60"><X size={14} /></button>}
               </div>
-              <button onClick={() => { setSearchOpen(false); setQuery('') }} className="text-sm font-semibold text-ink/60 dark:text-white/50 hover:text-ink focus-ring">Cancel</button>
+              <button onClick={() => { setSearchOpen(false); setQuery('') }} className="text-sm font-semibold text-ink/60 dark:text-white/50 hover:text-ink focus-ring">{t('cancel')}</button>
             </div>
 
             {/* Inline results */}
@@ -201,13 +203,13 @@ export default function Header({ title }) {
                   </button>
                 ))}
                 <button onClick={goSearch} className="text-xs font-semibold text-leaf-dark hover:underline text-center py-2">
-                  See all results for "{query}" →
+                  {t('see_all_results_for') || 'See all results for'} "{query}" →
                 </button>
               </div>
             )}
 
             {query.length > 1 && results.length === 0 && (
-              <p className="max-w-xl mx-auto mt-3 text-sm text-ink/40 dark:text-white/35 px-3">No products found for "{query}"</p>
+              <p className="max-w-xl mx-auto mt-3 text-sm text-ink/40 dark:text-white/35 px-3">{(t('no_products_found_for') || 'No products found for')} "{query}"</p>
             )}
           </div>
         </div>

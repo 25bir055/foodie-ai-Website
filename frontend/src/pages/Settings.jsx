@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import AppShell from '../components/AppShell.jsx'
 import { useApp } from '../store.jsx'
 import { changeUserPassword, deleteUserAccount, updateUserProfile } from '../services/auth'
+import { useLanguage } from '../context/LanguageContext.jsx'
 
 function Toggle({ checked, id }) {
   return (
@@ -46,6 +47,7 @@ function SettingsRow({ icon: Icon, title, desc, right, onClick, danger }) {
 
 export default function Settings() {
   const { theme, toggleTheme, voiceEnabled, toggleVoice, logout, userName, user, setUser, scanHistory, clearScanHistory } = useApp()
+  const { language, changeLanguage, t } = useLanguage()
   const navigate = useNavigate()
   
   const [notifs, setNotifs] = useState(true)
@@ -106,7 +108,7 @@ export default function Settings() {
   }
 
   return (
-    <AppShell title="Settings">
+    <AppShell title={t('settings_title')}>
       <div className="max-w-lg flex flex-col gap-4 fade-in-up">
 
         {/* Account */}
@@ -141,18 +143,37 @@ export default function Settings() {
 
         {/* Appearance & Accessibility */}
         <div className="glass-panel overflow-hidden">
-          <p className="text-[11px] font-bold text-ink/40 dark:text-white/30 uppercase tracking-widest px-4 pt-4 pb-1">Appearance & Sound</p>
+          <p className="text-[11px] font-bold text-ink/40 dark:text-white/30 uppercase tracking-widest px-4 pt-4 pb-1">{t('app_preferences')}</p>
+          
+          <div className="p-4 border-b border-moss-100/70 dark:border-white/8">
+            <label className="block">
+              <span className="text-xs font-semibold text-ink/50 dark:text-white/40">{t('app_language')}</span>
+              <select
+                value={language}
+                onChange={(e) => changeLanguage(e.target.value)}
+                className="mt-1.5 w-full input-base"
+              >
+                <option value="en">English</option>
+                <option value="ta">Tamil (தமிழ்)</option>
+                <option value="hi">Hindi (हिंदी)</option>
+                <option value="te">Telugu (తెలుగు)</option>
+                <option value="ml">Malayalam (മലയാളം)</option>
+                <option value="kn">Kannada (ಕನ್ನಡ)</option>
+              </select>
+            </label>
+          </div>
+
           <SettingsRow
             icon={theme === 'light' ? Moon : Sun}
-            title="Dark Mode"
+            title={t('dark_mode')}
             desc="Easier on the eyes at night"
             onClick={toggleTheme}
             right={<Toggle checked={theme === 'dark'} onChange={toggleTheme} id="dark-mode-toggle" />}
           />
           <SettingsRow
             icon={Volume2}
-            title="AI Voice Assistant"
-            desc="Speak out nutrition insights after scanning"
+            title={t('voice_ai')}
+            desc={t('voice_feedback_desc')}
             onClick={toggleVoice}
             right={<Toggle checked={voiceEnabled} onChange={toggleVoice} id="voice-toggle" />}
           />
@@ -214,10 +235,10 @@ export default function Settings() {
         {/* Log out */}
         <SettingsRow
           icon={LogOut}
-          title="Log Out"
+          title={t('logout')}
           desc="Sign out of your Foodie AI account"
           danger
-          onClick={async () => { await logout(); navigate('/') }}
+          onClick={async () => { await logout() }}
           right={null}
         />
       </div>

@@ -1,22 +1,25 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Leaf, Mail, Lock, ScanBarcode, ShieldCheck, Sparkles, Eye, EyeOff, ArrowRight, ChevronRight, AlertCircle } from 'lucide-react'
+import { Leaf, Mail, Lock, ScanBarcode, ShieldCheck, Sparkles, Eye, EyeOff, ArrowRight, ChevronRight, AlertCircle, Settings as SettingsIcon, Wifi, Check, X, Server } from 'lucide-react'
 import { useApp } from '../store.jsx'
 import { loginWithEmail, signupWithEmail, loginWithGoogle } from '../services/auth'
+import { getApiBaseUrl, setCustomApiBaseUrl } from '../services/api'
 
 import AnimatedBackground from '../components/AnimatedBackground.jsx'
 import ScrollReveal from '../components/ScrollReveal.jsx'
 
+import { useLanguage } from '../context/LanguageContext.jsx'
+
 const FEATURES = [
-  { icon: ScanBarcode, label: 'Instant Barcode Scan', desc: 'Scan any packaged food in seconds' },
-  { icon: Sparkles, label: 'AI Health Insights', desc: 'Personalised nutrition explanations' },
-  { icon: ShieldCheck, label: 'Allergen Detection', desc: 'Instant alerts for your triggers' }
+  { icon: ScanBarcode, labelKey: 'instant_barcode_scan', descKey: 'scan_packaged_food', fallbackLabel: 'Instant Barcode Scan', fallbackDesc: 'Scan any packaged food in seconds' },
+  { icon: Sparkles, labelKey: 'ai_health_insights', descKey: 'ai_health_insights_desc', fallbackLabel: 'AI Health Insights', fallbackDesc: 'Personalised nutrition explanations' },
+  { icon: ShieldCheck, labelKey: 'allergen_detection', descKey: 'allergen_alerts', fallbackLabel: 'Allergen Detection', fallbackDesc: 'Instant alerts for your triggers' }
 ]
 
 const STATS = [
-  { value: '2.4M+', label: 'Products Indexed' },
-  { value: '98%', label: 'Scan Accuracy' },
-  { value: '180+', label: 'Countries' }
+  { value: '2.4M+', labelKey: 'products_indexed', fallbackLabel: 'Products Indexed' },
+  { value: '98%', labelKey: 'scan_accuracy', fallbackLabel: 'Scan Accuracy' },
+  { value: '180+', labelKey: 'countries', fallbackLabel: 'Countries' }
 ]
 
 export default function Login() {
@@ -28,9 +31,34 @@ export default function Login() {
   const [loading, setLoading] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
   const [error, setError] = useState('')
+  const [showServerModal, setShowServerModal] = useState(false)
+  const [serverUrlInput, setServerUrlInput] = useState(() => getApiBaseUrl())
+  const [serverTestStatus, setServerTestStatus] = useState(null) // null | 'testing' | 'ok' | 'error'
 
   const navigate = useNavigate()
   const { isAuthed, profile, authLoading, setUser, setProfile } = useApp()
+  const { t } = useLanguage()
+
+  const handleTestServer = async (urlToTest) => {
+    setServerTestStatus('testing')
+    try {
+      const clean = (urlToTest || serverUrlInput).trim().replace(/\/+$/, '')
+      const res = await fetch(`${clean}/health`, { signal: AbortSignal.timeout(4000) })
+      if (res.ok) {
+        setServerTestStatus('ok')
+      } else {
+        setServerTestStatus('error')
+      }
+    } catch (e) {
+      setServerTestStatus('error')
+    }
+  }
+
+  const handleSaveServerUrl = () => {
+    setCustomApiBaseUrl(serverUrlInput)
+    setShowServerModal(false)
+    setError('')
+  }
 
   useEffect(() => {
     if (isAuthed && !authLoading) {
@@ -179,30 +207,30 @@ export default function Login() {
           </div>
           <div className="leading-tight">
             <p className="font-display font-semibold text-xl">Foodie AI</p>
-            <p className="text-[10px] uppercase tracking-widest text-white/40">Nutrition Assistant</p>
+            <p className="text-[10px] uppercase tracking-widest text-white/40">{t('nutrition_assistant') || 'Nutrition Assistant'}</p>
           </div>
         </div>
 
         {/* Hero copy */}
         <div className="relative max-w-md">
           <p className="font-display text-[2.6rem] leading-[1.1] font-medium">
-            Scan the label.<br />
-            <span className="text-leaf-light">Skip the guesswork.</span>
+            {t('scan_the_label') || 'Scan the label.'}<br />
+            <span className="text-leaf-light">{t('skip_guesswork') || 'Skip the guesswork.'}</span>
           </p>
           <p className="text-white/60 mt-5 text-[15px] leading-relaxed">
-            Foodie AI reads the barcode, breaks down the nutrition panel, and tells you — in plain language — whether it belongs in your cart.
+            {t('foodie_ai_desc') || 'Foodie AI reads the barcode, breaks down the nutrition panel, and tells you — in plain language — whether it belongs in your cart.'}
           </p>
 
           {/* Feature chips */}
           <div className="mt-8 flex flex-col gap-3">
-            {FEATURES.map(({ icon: Icon, label, desc }) => (
-              <div key={label} className="flex items-center gap-3 glass !bg-white/8 !border-white/10 rounded-xl p-3.5">
+            {FEATURES.map(({ icon: Icon, labelKey, descKey, fallbackLabel, fallbackDesc }) => (
+              <div key={labelKey} className="flex items-center gap-3 glass !bg-white/8 !border-white/10 rounded-xl p-3.5">
                 <div className="h-9 w-9 rounded-lg bg-leaf-light/20 flex items-center justify-center shrink-0">
                   <Icon size={17} className="text-leaf-light" />
                 </div>
                 <div>
-                  <p className="text-sm font-medium">{label}</p>
-                  <p className="text-[11px] text-white/50">{desc}</p>
+                  <p className="text-sm font-medium">{t(labelKey) || fallbackLabel}</p>
+                  <p className="text-[11px] text-white/50">{t(descKey) || fallbackDesc}</p>
                 </div>
                 <ChevronRight size={14} className="ml-auto text-white/30" />
               </div>
@@ -211,10 +239,10 @@ export default function Login() {
 
           {/* Stats */}
           <div className="mt-8 grid grid-cols-3 gap-3">
-            {STATS.map(({ value, label }) => (
-              <div key={label} className="text-center">
+            {STATS.map(({ value, labelKey, fallbackLabel }) => (
+              <div key={labelKey} className="text-center">
                 <p className="font-display font-semibold text-2xl text-leaf-light">{value}</p>
-                <p className="text-[11px] text-white/50 mt-0.5">{label}</p>
+                <p className="text-[11px] text-white/50 mt-0.5">{t(labelKey) || fallbackLabel}</p>
               </div>
             ))}
           </div>
@@ -243,14 +271,14 @@ export default function Login() {
 
           {/* Mobile onboarding/features helper */}
           <div className="lg:hidden mb-6 bg-moss-50 dark:bg-white/5 border border-moss-100/50 dark:border-white/5 rounded-2xl p-4 flex flex-col gap-2.5">
-            <p className="text-[10px] font-bold text-moss-700 dark:text-leaf-light uppercase tracking-wider">How it works</p>
+            <p className="text-[10px] font-bold text-moss-700 dark:text-leaf-light uppercase tracking-wider">{t('how_it_works') || 'How it works'}</p>
             <div className="grid grid-cols-3 gap-2">
-              {FEATURES.map(({ icon: Icon, label }) => (
-                <div key={label} className="flex flex-col items-center text-center p-2 rounded-xl bg-white dark:bg-white/5 border border-moss-100 dark:border-white/5 shadow-xs">
+              {FEATURES.map(({ icon: Icon, labelKey, fallbackLabel }) => (
+                <div key={labelKey} className="flex flex-col items-center text-center p-2 rounded-xl bg-white dark:bg-white/5 border border-moss-100 dark:border-white/5 shadow-xs">
                   <div className="h-7 w-7 rounded-lg bg-leaf-light/15 flex items-center justify-center mb-1">
                     <Icon size={14} className="text-leaf-dark dark:text-leaf-light" />
                   </div>
-                  <span className="text-[9px] font-semibold text-ink/70 dark:text-white/70 leading-tight">{label}</span>
+                  <span className="text-[9px] font-semibold text-ink/70 dark:text-white/70 leading-tight">{t(labelKey) || fallbackLabel}</span>
                 </div>
               ))}
             </div>
@@ -269,31 +297,66 @@ export default function Login() {
                     : 'text-ink/50 dark:text-white/40 hover:text-ink/70 dark:hover:text-white/60'
                 }`}
               >
-                {m === 'signin' ? 'Sign In' : 'Create Account'}
+                {m === 'signin' ? (t('sign_in') || 'Sign In') : (t('create_account') || 'Create Account')}
               </button>
             ))}
           </div>
 
+          {/* Server Config Button */}
+          <div className="flex justify-end mb-2">
+            <button
+              type="button"
+              onClick={() => {
+                setShowServerModal(true)
+                setServerUrlInput(getApiBaseUrl())
+                setServerTestStatus(null)
+              }}
+              className="px-2.5 py-1.5 rounded-lg border border-moss-100 dark:border-white/10 text-[11px] text-ink/50 dark:text-white/40 hover:text-moss-700 dark:hover:text-leaf-light hover:bg-moss-50 dark:hover:bg-white/5 flex items-center gap-1.5 transition-colors focus-ring"
+            >
+              <Server size={13} />
+              <span className="font-mono">{getApiBaseUrl().replace('http://', '').replace('/api', '')}</span>
+              <SettingsIcon size={12} className="opacity-60" />
+            </button>
+          </div>
+
           <h1 className="font-display text-2xl font-medium text-ink dark:text-white">
-            {mode === 'signin' ? 'Welcome back 👋' : 'Join Foodie AI'}
+            {mode === 'signin' ? (t('welcome_back') || 'Welcome back 👋') : (t('join_foodie_ai') || 'Join Foodie AI')}
           </h1>
           <p className="text-sm text-ink/50 dark:text-white/40 mt-1.5">
             {mode === 'signin'
-              ? 'Sign in to continue to your dashboard.'
-              : 'Start scanning smarter in under a minute.'}
+              ? (t('sign_in_desc') || 'Sign in to continue to your dashboard.')
+              : (t('start_scanning_smarter') || 'Start scanning smarter in under a minute.')}
           </p>
 
           {error && (
-            <div className="mt-4 flex items-center gap-2 p-3 rounded-xl bg-clay/10 border border-clay/20 text-clay text-xs">
-              <AlertCircle size={16} className="shrink-0" />
-              <span>{error}</span>
+            <div className="mt-4 p-3 rounded-xl bg-clay/10 border border-clay/20 text-clay text-xs flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <AlertCircle size={16} className="shrink-0" />
+                <span>{error}</span>
+              </div>
+              {(error.toLowerCase().includes('failed to fetch') || error.toLowerCase().includes('network') || error.toLowerCase().includes('auth failed')) && (
+                <div className="pt-1.5 border-t border-clay/20 flex items-center justify-between text-[11px]">
+                  <span>Server unreachable over network.</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowServerModal(true)
+                      setServerUrlInput(getApiBaseUrl())
+                      setServerTestStatus(null)
+                    }}
+                    className="font-bold underline text-moss-700 dark:text-leaf-light ml-2"
+                  >
+                    ⚙️ Check Server IP
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
           <form onSubmit={handleEmailSubmit} className="mt-6 flex flex-col gap-4">
             {mode === 'signup' && (
               <label className="block">
-                <span className="text-xs font-semibold text-ink/60 dark:text-white/50 uppercase tracking-wide">Full Name</span>
+                <span className="text-xs font-semibold text-ink/60 dark:text-white/50 uppercase tracking-wide">{t('full_name') || 'Full Name'}</span>
                 <div className="mt-1.5 flex items-center gap-2.5 bg-white dark:bg-white/5 border border-moss-100 dark:border-white/10 rounded-xl px-3.5 py-3 focus-within:ring-2 focus-within:ring-leaf transition-shadow">
                   <span className="text-ink/30">👤</span>
                   <input
@@ -309,7 +372,7 @@ export default function Login() {
             )}
 
             <label className="block">
-              <span className="text-xs font-semibold text-ink/60 dark:text-white/50 uppercase tracking-wide">Email</span>
+              <span className="text-xs font-semibold text-ink/60 dark:text-white/50 uppercase tracking-wide">{t('email') || 'Email'}</span>
               <div className="mt-1.5 flex items-center gap-2.5 bg-white dark:bg-white/5 border border-moss-100 dark:border-white/10 rounded-xl px-3.5 py-3 focus-within:ring-2 focus-within:ring-leaf transition-shadow">
                 <Mail size={16} className="text-ink/30 shrink-0" />
                 <input
@@ -324,7 +387,7 @@ export default function Login() {
             </label>
 
             <label className="block">
-              <span className="text-xs font-semibold text-ink/60 dark:text-white/50 uppercase tracking-wide">Password</span>
+              <span className="text-xs font-semibold text-ink/60 dark:text-white/50 uppercase tracking-wide">{t('password') || 'Password'}</span>
               <div className="mt-1.5 flex items-center gap-2.5 bg-white dark:bg-white/5 border border-moss-100 dark:border-white/10 rounded-xl px-3.5 py-3 focus-within:ring-2 focus-within:ring-leaf transition-shadow">
                 <Lock size={16} className="text-ink/30 shrink-0" />
                 <input
@@ -353,11 +416,11 @@ export default function Login() {
               {loading ? (
                 <>
                   <span className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  {mode === 'signin' ? 'Signing in…' : 'Creating account…'}
+                  {mode === 'signin' ? (t('signing_in') || 'Signing in…') : (t('creating_account') || 'Creating account…')}
                 </>
               ) : (
                 <>
-                  {mode === 'signin' ? 'Sign In' : 'Create Account'}
+                  {mode === 'signin' ? (t('sign_in') || 'Sign In') : (t('create_account') || 'Create Account')}
                   <ArrowRight size={16} />
                 </>
               )}
@@ -365,7 +428,7 @@ export default function Login() {
 
             <div className="flex items-center gap-3 my-1">
               <span className="h-px flex-1 bg-moss-100 dark:bg-white/10" />
-              <span className="text-xs text-ink/30 dark:text-white/30">or continue with</span>
+              <span className="text-xs text-ink/30 dark:text-white/30">{t('or_continue_with') || 'or continue with'}</span>
               <span className="h-px flex-1 bg-moss-100 dark:bg-white/10" />
             </div>
 
@@ -385,7 +448,7 @@ export default function Login() {
                   <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-1 3-3.1 5.4-5.8 6.9l6.5 5.4c-.5.4 7-5.1 7-16.3 0-1.4-.1-2.4-.4-3.5z" />
                 </svg>
               )}
-              Continue with Google
+              {t('continue_with_google') || 'Continue with Google'}
             </button>
 
             <button
@@ -394,22 +457,126 @@ export default function Login() {
               disabled={loading || googleLoading}
               className="flex items-center justify-center gap-2.5 bg-mint-tint dark:bg-white/5 border border-moss-100 dark:border-white/10 rounded-xl py-3 text-sm font-semibold text-leaf-dark dark:text-leaf-light hover:bg-leaf-light/10 transition-colors focus-ring disabled:opacity-50"
             >
-              🚀 Explore as Guest (Try Demo)
+              {t('explore_as_guest') || '🚀 Explore as Guest (Try Demo)'}
             </button>
           </form>
 
           <p className="text-center text-sm text-ink/50 dark:text-white/40 mt-8">
-            {mode === 'signin' ? "Don't have an account? " : 'Already have an account? '}
+            {mode === 'signin' ? (t('dont_have_account') || "Don't have an account? ") : (t('already_have_account') || 'Already have an account? ')}
             <button
               onClick={() => { setMode(mode === 'signin' ? 'signup' : 'signin'); setError('') }}
               className="font-semibold text-leaf-dark hover:underline"
             >
-              {mode === 'signin' ? 'Create account' : 'Sign in'}
+              {mode === 'signin' ? (t('create_account') || 'Create account') : (t('sign_in') || 'Sign in')}
             </button>
           </p>
           </div>
         </ScrollReveal>
       </div>
+
+      {/* ── Server Settings Modal ─────────────────────────────────── */}
+      {showServerModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-cream dark:bg-[#0E1A14] border border-moss-100 dark:border-white/10 rounded-2xl p-6 max-w-md w-full shadow-glow fade-in-up">
+            <div className="flex items-center justify-between pb-3 mb-4 border-b border-moss-100 dark:border-white/10">
+              <div className="flex items-center gap-2">
+                <Server className="text-leaf" size={20} />
+                <h3 className="font-display font-semibold text-lg text-ink dark:text-white">Backend Server IP / URL</h3>
+              </div>
+              <button onClick={() => setShowServerModal(false)} className="text-ink/40 hover:text-ink dark:text-white/40">
+                <X size={18} />
+              </button>
+            </div>
+
+            <p className="text-xs text-ink/70 dark:text-white/70 mb-2.5 leading-relaxed">
+              Connect via <strong>Live Cloud Tunnel</strong> (works on mobile data 4G/5G anywhere) or <strong>Local Wi-Fi IP</strong>:
+            </p>
+
+            {/* Quick-fill preset buttons */}
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setServerUrlInput('https://newspapers-thoroughly-english-physics.trycloudflare.com/api')
+                  handleTestServer('https://newspapers-thoroughly-english-physics.trycloudflare.com/api')
+                }}
+                className="text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-leaf/10 text-leaf-dark dark:text-leaf-light border border-leaf/20 hover:bg-leaf/20 transition-colors"
+              >
+                ⚡ Cloudflare Tunnel (High Speed)
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setServerUrlInput('http://172.30.135.135:5000/api')
+                  handleTestServer('http://172.30.135.135:5000/api')
+                }}
+                className="text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-moss-50 dark:bg-white/5 text-ink/60 dark:text-white/60 border border-moss-100 dark:border-white/10 hover:bg-mint-tint"
+              >
+                📶 Local Wi-Fi (172.30.135.135)
+              </button>
+            </div>
+
+            <label className="block mb-3">
+              <span className="text-[11px] font-semibold text-ink/50 dark:text-white/40 uppercase">Server API Endpoint</span>
+              <input
+                type="text"
+                value={serverUrlInput}
+                onChange={(e) => {
+                  setServerUrlInput(e.target.value)
+                  setServerTestStatus(null)
+                }}
+                placeholder="https://newspapers-thoroughly-english-physics.trycloudflare.com/api"
+                className="input-base font-mono text-xs w-full mt-1"
+              />
+            </label>
+
+            {/* Test connection results */}
+            <div className="flex items-center justify-between mb-4">
+              <button
+                type="button"
+                onClick={() => handleTestServer(serverUrlInput)}
+                disabled={serverTestStatus === 'testing'}
+                className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-moss-100 dark:border-white/10 hover:bg-mint-tint dark:hover:bg-white/5 flex items-center gap-1.5 focus-ring"
+              >
+                <Wifi size={13} className="text-leaf" />
+                {serverTestStatus === 'testing' ? 'Testing connection...' : 'Test Connection'}
+              </button>
+
+              {serverTestStatus === 'ok' && (
+                <span className="text-xs font-bold text-leaf flex items-center gap-1">
+                  <Check size={14} /> Server Online (200 OK)
+                </span>
+              )}
+              {serverTestStatus === 'error' && (
+                <span className="text-xs font-bold text-clay flex items-center gap-1">
+                  <X size={14} /> Unreachable
+                </span>
+              )}
+            </div>
+
+            <div className="flex gap-2 justify-end pt-2 border-t border-moss-100 dark:border-white/10">
+              <button
+                type="button"
+                onClick={() => {
+                  setCustomApiBaseUrl(null)
+                  setServerUrlInput(getApiBaseUrl())
+                  setShowServerModal(false)
+                }}
+                className="btn-secondary text-xs px-3.5 py-2"
+              >
+                Reset Default
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveServerUrl}
+                className="btn-primary text-xs px-4 py-2"
+              >
+                Save & Apply
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
     </>
   )

@@ -73,19 +73,49 @@ function calculatePersonalizedScore(product, userProfile, baseScore) {
     }
   }
 
-  // Diabetic / Blood Sugar Control
-  if (goals.includes('Blood sugar control') || goals.includes('Diabetic')) {
+  // --- 2. MEDICAL CONDITIONS ---
+  const medical = userProfile.medicalConditions || []
+
+  // Diabetes
+  if (medical.includes('Diabetes') || goals.includes('Blood sugar control') || goals.includes('Diabetic')) {
     if (sugar > 10) {
       score -= 30
-      insights.push('🔴 High sugar content (Bad for blood sugar control)')
-    }
-    if (fiber >= 5) {
+      insights.push('🔴 High sugar content (Dangerous for Diabetes/Blood Sugar)')
+    } else if (fiber >= 5) {
       score += 10
       insights.push('🟢 High fiber helps stabilize blood sugar')
     }
   }
 
-  // Heart Health
+  // Hypertension (High Blood Pressure)
+  if (medical.includes('Hypertension (High Blood Pressure)')) {
+    if (sodium > 400) {
+      score -= 30
+      insights.push('🔴 High sodium (Dangerous for High Blood Pressure)')
+    } else {
+      score += 5
+      insights.push('🟢 Low sodium')
+    }
+  }
+
+  // High Cholesterol
+  if (medical.includes('High Cholesterol')) {
+    const saturatedFat = Number(product.saturatedFat) || 0
+    if (saturatedFat > 3) {
+      score -= 25
+      insights.push('🔴 High saturated fat (Bad for Cholesterol)')
+    }
+  }
+
+  // Thyroid
+  if (medical.includes('Thyroid')) {
+    if (ingredientsText.includes('soy')) {
+      score -= 10
+      insights.push('🔴 Contains soy (May interfere with Thyroid medication)')
+    }
+  }
+
+  // --- 3. HEALTH GOALS ---
   if (goals.includes('Heart health')) {
     if (sodium > 500) {
       score -= 20

@@ -10,10 +10,17 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/cli": "^8.5.0",
+    "@capacitor/core": "^8.5.0",
     "@google/generative-ai": "^0.24.1",
     "@tensorflow-models/mobilenet": "^2.1.1",
     "@tensorflow/tfjs": "^4.22.0",
+    "axios": "^1.19.0",
     "canvas-confetti": "^1.9.4",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
     "firebase": "^12.17.1",
     "framer-motion": "^11.2.10",
     "html5-qrcode": "^2.3.8",

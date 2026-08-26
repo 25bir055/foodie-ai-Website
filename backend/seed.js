@@ -95,6 +95,19 @@ async function seed() {
       const nutriscoreScore = toNumber(row.nutriscore_score)
       const healthScore = computeHealthScore(nutriscoreScore)
 
+      // Indian Disease Dietary Guidance
+      let insights = []
+      const sugarG = toNumber(row.sugars_g || row.sugar)
+      const sodiumG = toNumber(row.sodium_g || row.sodium)
+      const saltG = toNumber(row.salt_g || row.salt)
+      const satFatG = toNumber(row.saturated_fat_g || row.saturatedFat)
+      
+      if (sugarG && sugarG > 10) insights.push('High Sugar: Caution for Diabetes')
+      if ((sodiumG && sodiumG > 0.4) || (saltG && saltG > 1)) insights.push('High Sodium/Salt: Caution for Hypertension & Heart Disease')
+      if (satFatG && satFatG > 5) insights.push('High Saturated Fat: Caution for Cholesterol')
+
+      const generatedInsight = insights.length > 0 ? insights.join('. ') + '.' : (row.insight || '')
+
       const product = {
         id: `p_${barcode}`,
         barcode,
@@ -143,7 +156,7 @@ async function seed() {
         categories: row.categories || '',
 
         servingSize: '100 g',
-        insight: row.insight || ''
+        insight: generatedInsight
       }
 
       bulkOps.push({

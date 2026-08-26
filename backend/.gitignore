@@ -5,3 +5,8 @@ build/
 .firebase/
 .vscode/
 .idea/
+cloudflared.exe
+*.exe
+*.webm
+*.log
+uploads/

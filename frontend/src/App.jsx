@@ -20,6 +20,9 @@ import Profile from './pages/Profile.jsx'
 import PersonalDashboard from './pages/PersonalDashboard.jsx'
 import About from './pages/About.jsx'
 import Settings from './pages/Settings.jsx'
+import AIAssistant from './pages/AIAssistant.jsx'
+import Prescription from './pages/Prescription.jsx'
+import Family from './pages/Family.jsx'
 
 function Protected({ children }) {
   const { isAuthed, authLoading } = useApp()
@@ -57,6 +60,9 @@ export default function App() {
         <Route path="/personal-dashboard" element={<Protected><PersonalDashboard /></Protected>} />
         <Route path="/about" element={<Protected><About /></Protected>} />
         <Route path="/settings" element={<Protected><Settings /></Protected>} />
+        <Route path="/ai" element={<Protected><AIAssistant /></Protected>} />
+        <Route path="/prescription" element={<Protected><Prescription /></Protected>} />
+        <Route path="/family" element={<Protected><Family /></Protected>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </AnimatePresence>

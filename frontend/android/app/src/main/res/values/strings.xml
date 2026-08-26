@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">foodie-ai</string>
+    <string name="title_activity_main">foodie-ai</string>
+    <string name="package_name">com.foodieai.app</string>
+    <string name="custom_url_scheme">com.foodieai.app</string>
+</resources>

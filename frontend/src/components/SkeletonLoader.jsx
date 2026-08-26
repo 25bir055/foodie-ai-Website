@@ -32,7 +32,6 @@ export default function SkeletonLoader() {
         <div className="h-4 w-4 rounded-full bg-leaf-light/50" />
         <div className="h-3 flex-1 bg-leaf-light/20 rounded-full" />
       </div>
-
       {/* Buttons Skeleton */}
       <div className="grid grid-cols-2 gap-3 mt-4">
         <div className="h-10 rounded-xl bg-moss-200 dark:bg-white/10" />

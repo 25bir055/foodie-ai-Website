@@ -50,6 +50,8 @@ const SEARCH_QUERIES = [
   { tag: 'categories', value: 'cheese', type: 'contains', extra: '&countries_tags_en=india' },
   { tag: 'categories', value: 'ready-meals', type: 'contains', extra: '&countries_tags_en=india' },
   { tag: 'categories', value: 'lentils', type: 'contains', extra: '&countries_tags_en=india' },
+  { tag: 'categories', value: 'south-indian', type: 'contains', extra: '&countries_tags_en=india' },
+  { tag: 'categories', value: 'indian-sweets', type: 'contains', extra: '&countries_tags_en=india' },
   // Brand-based searches for popular Indian brands
   { tag: 'brands', value: 'amul', type: 'contains' },
   { tag: 'brands', value: 'parle', type: 'contains' },
@@ -77,6 +79,13 @@ const SEARCH_QUERIES = [
   { tag: 'brands', value: 'fortune', type: 'contains' },
   { tag: 'brands', value: 'aashirvaad', type: 'contains' },
   { tag: 'brands', value: 'mother-dairy', type: 'contains' },
+  // South Indian & Regional brands
+  { tag: 'brands', value: 'mtr', type: 'contains' },
+  { tag: 'brands', value: 'aachi', type: 'contains' },
+  { tag: 'brands', value: 'sakthi', type: 'contains' },
+  { tag: 'brands', value: 'naga', type: 'contains' },
+  { tag: 'brands', value: 'bambino', type: 'contains' },
+  { tag: 'brands', value: 'id', type: 'contains' },
 ]
 
 // ── Helpers ────────────────────────────────────────────────────────────────
