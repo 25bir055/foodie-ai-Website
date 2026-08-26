@@ -17,8 +17,8 @@ export function getApiBaseUrl() {
   )
 
   if (isCapacitor) {
-    // Connect to 24/7 Live Cloud Server (Render)
-    return 'https://foodie-ai-website-0ghh.onrender.com/api'
+    // Connect to live verified cloud endpoint
+    return 'https://portion-handles-but-illustration.trycloudflare.com/api'
   }
 
   // 3. Check environment variable

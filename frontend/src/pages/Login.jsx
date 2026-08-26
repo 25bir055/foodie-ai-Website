@@ -497,28 +497,28 @@ export default function Login() {
               <button
                 type="button"
                 onClick={() => {
-                  setServerUrlInput('https://foodie-ai-website-0ghh.onrender.com/api')
-                  handleTestServer('https://foodie-ai-website-0ghh.onrender.com/api')
+                  setServerUrlInput('https://portion-handles-but-illustration.trycloudflare.com/api')
+                  handleTestServer('https://portion-handles-but-illustration.trycloudflare.com/api')
                 }}
                 className="text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-leaf/10 text-leaf-dark dark:text-leaf-light border border-leaf/20 hover:bg-leaf/20 transition-colors"
               >
-                ☁️ Render Cloud (24/7 Global)
+                ⚡ Live Cloud (High Speed)
               </button>
               <button
                 type="button"
                 onClick={() => {
-                  setServerUrlInput('https://newspapers-thoroughly-english-physics.trycloudflare.com/api')
-                  handleTestServer('https://newspapers-thoroughly-english-physics.trycloudflare.com/api')
+                  setServerUrlInput('https://foodie-ai-website-0ghh.onrender.com/api')
+                  handleTestServer('https://foodie-ai-website-0ghh.onrender.com/api')
                 }}
                 className="text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-moss-50 dark:bg-white/5 text-ink/60 dark:text-white/60 border border-moss-100 dark:border-white/10 hover:bg-mint-tint"
               >
-                ⚡ Cloudflare Tunnel
+                ☁️ Render Cloud
               </button>
               <button
                 type="button"
                 onClick={() => {
-                  setServerUrlInput('http://172.30.135.135:5000/api')
-                  handleTestServer('http://172.30.135.135:5000/api')
+                  setServerUrlInput('http://192.168.169.135:5000/api')
+                  handleTestServer('http://192.168.169.135:5000/api')
                 }}
                 className="text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-moss-50 dark:bg-white/5 text-ink/60 dark:text-white/60 border border-moss-100 dark:border-white/10 hover:bg-mint-tint"
               >
