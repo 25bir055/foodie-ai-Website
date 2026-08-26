@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
-import { Check, UserCircle2, Activity, Leaf, Edit2, X, Loader2, LogOut } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Check, UserCircle2, Activity, Leaf, Edit2, X, Loader2, LogOut, Settings as SettingsIcon } from 'lucide-react'
 import AppShell from '../components/AppShell.jsx'
 import { useApp } from '../store.jsx'
 import { updateUserProfile } from '../services/auth.js'
@@ -64,6 +65,7 @@ function DisplayField({ label, value }) {
 }
 
 export default function Profile() {
+  const navigate = useNavigate()
   const { user, profile, setProfile, userName, logout } = useApp()
   const { t } = useLanguage()
   const [isEditing, setIsEditing] = useState(false)
@@ -453,9 +455,18 @@ export default function Profile() {
           </div>
         )}
 
-        {/* 🚪 Prominent Logout Button */}
+        {/* ⚙️ App & Server Settings & Logout */}
         {!isEditing && (
-          <div className="pt-3">
+          <div className="pt-3 flex flex-col gap-2.5">
+            <button
+              type="button"
+              onClick={() => navigate('/settings')}
+              className="w-full py-3.5 px-4 rounded-2xl bg-white dark:bg-white/5 hover:bg-moss-50 dark:hover:bg-white/10 text-ink dark:text-white border border-moss-100 dark:border-white/10 font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-xs"
+            >
+              <SettingsIcon size={17} className="text-leaf" />
+              <span>{t('settings') || 'App & Server Settings'}</span>
+            </button>
+
             <button
               type="button"
               onClick={async () => {

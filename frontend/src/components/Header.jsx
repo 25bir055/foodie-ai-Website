@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, Bell, Sun, Moon, Leaf, X, ScanBarcode } from 'lucide-react'
+import { Search, Bell, Sun, Moon, Leaf, X, ScanBarcode, Settings as SettingsIcon } from 'lucide-react'
 import { useApp } from '../store.jsx'
 import { PRODUCTS } from '../data/mockData'
 import { useLanguage } from '../context/LanguageContext.jsx'
@@ -66,6 +66,15 @@ export default function Header({ title }) {
               {t('search_food')}
             </button>
           )}
+
+          {/* Settings Button */}
+          <button
+            onClick={() => navigate('/settings')}
+            aria-label="Settings"
+            className="p-2.5 rounded-full hover:bg-moss-50 dark:hover:bg-white/10 text-ink/50 dark:text-white/50 transition-colors focus-ring"
+          >
+            <SettingsIcon size={18} />
+          </button>
 
           {/* Theme toggle */}
           <button
