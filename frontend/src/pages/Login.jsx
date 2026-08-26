@@ -497,12 +497,22 @@ export default function Login() {
               <button
                 type="button"
                 onClick={() => {
-                  setServerUrlInput('https://newspapers-thoroughly-english-physics.trycloudflare.com/api')
-                  handleTestServer('https://newspapers-thoroughly-english-physics.trycloudflare.com/api')
+                  setServerUrlInput('https://foodie-ai-website-0ghh.onrender.com/api')
+                  handleTestServer('https://foodie-ai-website-0ghh.onrender.com/api')
                 }}
                 className="text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-leaf/10 text-leaf-dark dark:text-leaf-light border border-leaf/20 hover:bg-leaf/20 transition-colors"
               >
-                ⚡ Cloudflare Tunnel (High Speed)
+                ☁️ Render Cloud (24/7 Global)
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setServerUrlInput('https://newspapers-thoroughly-english-physics.trycloudflare.com/api')
+                  handleTestServer('https://newspapers-thoroughly-english-physics.trycloudflare.com/api')
+                }}
+                className="text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-moss-50 dark:bg-white/5 text-ink/60 dark:text-white/60 border border-moss-100 dark:border-white/10 hover:bg-mint-tint"
+              >
+                ⚡ Cloudflare Tunnel
               </button>
               <button
                 type="button"
@@ -512,7 +522,7 @@ export default function Login() {
                 }}
                 className="text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-moss-50 dark:bg-white/5 text-ink/60 dark:text-white/60 border border-moss-100 dark:border-white/10 hover:bg-mint-tint"
               >
-                📶 Local Wi-Fi (172.30.135.135)
+                📶 Local Wi-Fi
               </button>
             </div>
 
@@ -525,7 +535,7 @@ export default function Login() {
                   setServerUrlInput(e.target.value)
                   setServerTestStatus(null)
                 }}
-                placeholder="https://newspapers-thoroughly-english-physics.trycloudflare.com/api"
+                placeholder="https://foodie-ai-website-0ghh.onrender.com/api"
                 className="input-base font-mono text-xs w-full mt-1"
               />
             </label>

@@ -41,7 +41,7 @@ app.use(cors())
 app.use(express.json({ limit: '50mb' }))
 app.use(express.urlencoded({ limit: '50mb', extended: true }))
 
-// Health check endpoint (both /api/health and /health)
+// Health check endpoint (both /api/health, /health and root /)
 const healthHandler = (req, res) => {
   res.json({
     status: 'ok',
@@ -50,6 +50,8 @@ const healthHandler = (req, res) => {
     mongoConnected: mongoose.connection.readyState === 1
   })
 }
+app.get('/', healthHandler)
+app.get('/api', healthHandler)
 app.get('/api/health', healthHandler)
 app.get('/health', healthHandler)
 
@@ -96,7 +98,7 @@ app.use('/settings', settingsRouter)
 app.use('/api/bills', billsRouter)
 app.use('/bills', billsRouter)
 
-app.listen(PORT, () => {
-  console.log(`🚀 Foodie AI Backend Server listening on http://localhost:${PORT}`)
-  console.log(`📡 Health Check: http://localhost:${PORT}/api/health`)
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Foodie AI Backend Server listening on 0.0.0.0:${PORT}`)
+  console.log(`📡 Health Check: http://0.0.0.0:${PORT}/api/health`)
 })

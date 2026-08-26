@@ -17,8 +17,8 @@ export function getApiBaseUrl() {
   )
 
   if (isCapacitor) {
-    // Connect to live Cloudflare tunnel
-    return 'https://newspapers-thoroughly-english-physics.trycloudflare.com/api'
+    // Connect to 24/7 Live Cloud Server (Render)
+    return 'https://foodie-ai-website-0ghh.onrender.com/api'
   }
 
   // 3. Check environment variable
